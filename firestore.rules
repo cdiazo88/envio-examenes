@@ -1,0 +1,209 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Función helper para verificar autenticación
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Función helper para verificar roles
+    function hasRole(role) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+    
+    // Función helper para verificar si es SuperAdmin
+    function isSuperAdmin() {
+      return hasRole('super_admin');
+    }
+    
+    // Función helper para verificar si es Admin de Centro
+    function isAdminCentro() {
+      return hasRole('admin_centro');
+    }
+    
+    // Función helper para verificar si es Destinatario
+    function isDestinatario() {
+      return hasRole('destinatario');
+    }
+    
+    // Función helper para verificar si pertenece al centro
+    function belongsToCentro(centroId) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.centroSaludId == centroId;
+    }
+
+    // Función helper para verificar si es el paciente dueño del documento
+    function isPacienteOwner(pacienteId) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/pacientes/$(pacienteId)) &&
+             get(/databases/$(database)/documents/pacientes/$(pacienteId)).data.email == request.auth.token.email;
+    }
+
+    // Función helper para verificar si es la entidad dueña del documento
+    function isEntidadOwner(entidadId) {
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/entidades/$(entidadId)) &&
+             get(/databases/$(database)/documents/entidades/$(entidadId)).data.email == request.auth.token.email;
+    }
+
+    // Función helper para verificar si la entidad del token puede ver paciente asociado
+    function isEntidadOfPaciente(pacienteData) {
+      return isAuthenticated() &&
+             pacienteData.entidadId != null &&
+             isEntidadOwner(pacienteData.entidadId);
+    }
+
+    // Función helper para verificar acceso directo por email en examen
+    function hasExamenEmailAccess() {
+      return isAuthenticated() &&
+             resource.data.accessEmails != null &&
+             request.auth.token.email in resource.data.accessEmails;
+    }
+    
+    // ==========================================
+    // COLECCIÓN: users
+    // ==========================================
+    match /users/{userId} {
+      // Leer: El propio usuario o SuperAdmin
+      allow read: if isAuthenticated() && 
+                     (request.auth.uid == userId || isSuperAdmin());
+      
+      // Crear: Solo SuperAdmin o Admin puede crear usuarios
+      allow create: if isSuperAdmin() || isAdminCentro();
+      
+      // Actualizar: El propio usuario o SuperAdmin
+      allow update: if isAuthenticated() && 
+                       (request.auth.uid == userId || isSuperAdmin());
+      
+      // Eliminar: Solo SuperAdmin
+      allow delete: if isSuperAdmin();
+    }
+    
+    // ==========================================
+    // COLECCIÓN: centrosSalud
+    // ==========================================
+    match /centrosSalud/{centroId} {
+      // Leer: Autenticados pueden ver su centro o SuperAdmin ve todos
+      allow read: if isAuthenticated() && 
+                     (isSuperAdmin() || belongsToCentro(centroId));
+      
+      // Crear, actualizar, eliminar: Solo SuperAdmin
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+    // ==========================================
+    // COLECCIÓN: pacientes
+    // ==========================================
+    match /pacientes/{pacienteId} {
+      // Leer: SuperAdmin, Admin del centro, o el propio paciente
+      allow read: if isAuthenticated() && 
+                     (isSuperAdmin() || 
+                      belongsToCentro(resource.data.centroSaludId) ||
+                      resource.data.email == request.auth.token.email ||
+                      isEntidadOfPaciente(resource.data));
+      
+      // Crear, actualizar: SuperAdmin o Admin del centro
+      allow create: if isAuthenticated() && 
+                       (isSuperAdmin() || isAdminCentro());
+      
+      allow update: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(resource.data.centroSaludId));
+      
+      // Eliminar: Solo SuperAdmin o Admin del centro
+      allow delete: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(resource.data.centroSaludId));
+    }
+    
+    // ==========================================
+    // COLECCIÓN: entidades
+    // ==========================================
+    match /entidades/{entidadId} {
+      // Leer: SuperAdmin, Admin del centro, o la propia entidad
+      allow read: if isAuthenticated() && 
+                     (isSuperAdmin() || 
+                      belongsToCentro(resource.data.centroSaludId) ||
+                      resource.data.email == request.auth.token.email);
+      
+      // Crear, actualizar: SuperAdmin o Admin del centro
+      allow create: if isAuthenticated() && 
+                       (isSuperAdmin() || isAdminCentro());
+      
+      allow update: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(resource.data.centroSaludId));
+      
+      // Eliminar: Solo SuperAdmin o Admin del centro
+      allow delete: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(resource.data.centroSaludId));
+    }
+    
+    // ==========================================
+    // COLECCIÓN: examenes
+    // ==========================================
+    match /examenes/{examenId} {
+      // Leer: SuperAdmin, Admin del centro, o el destinatario del examen
+      allow read: if isAuthenticated() && 
+                     (isSuperAdmin() || 
+                      belongsToCentro(resource.data.centroSaludId) ||
+                      hasExamenEmailAccess() ||
+                      (resource.data.destinatarioTipo == 'paciente' && isPacienteOwner(resource.data.destinatarioId)) ||
+                      (resource.data.destinatarioTipo == 'entidad' && isEntidadOwner(resource.data.destinatarioId)) ||
+                      (resource.data.destinatarioTipo == 'paciente' &&
+                       exists(/databases/$(database)/documents/pacientes/$(resource.data.destinatarioId)) &&
+                       isEntidadOfPaciente(get(/databases/$(database)/documents/pacientes/$(resource.data.destinatarioId)).data)));
+      
+      // Crear: SuperAdmin o Admin del centro
+      allow create: if isAuthenticated() && 
+                       (isSuperAdmin() || isAdminCentro());
+      
+      // Actualizar: SuperAdmin o Admin del centro
+      // Los destinatarios pueden actualizar el estado cuando lo visualizan
+      allow update: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(resource.data.centroSaludId) ||
+                        ((hasExamenEmailAccess() ||
+                          (resource.data.destinatarioTipo == 'paciente' && isPacienteOwner(resource.data.destinatarioId)) ||
+                          (resource.data.destinatarioTipo == 'entidad' && isEntidadOwner(resource.data.destinatarioId))) &&
+                         request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['estado', 'fechaVisualizacion', 'fechaDescarga', 'fechaActualizacion'])));
+      
+      // Eliminar: Solo SuperAdmin o Admin del centro
+      allow delete: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(resource.data.centroSaludId));
+    }
+    
+    // ==========================================
+    // COLECCIÓN: notificaciones
+    // ==========================================
+    match /notificaciones/{notifId} {
+      // Leer: El destinatario de la notificación o SuperAdmin
+      allow read: if isAuthenticated() && 
+                     (isSuperAdmin() || 
+                      resource.data.destinatarioId == request.auth.uid);
+      
+      // Crear: SuperAdmin o Admin del centro
+      allow create: if isAuthenticated() && 
+                       (isSuperAdmin() || isAdminCentro());
+      
+      // Actualizar: El destinatario puede marcar como leída
+      allow update: if isAuthenticated() && 
+                       resource.data.destinatarioId == request.auth.uid;
+      
+      // Eliminar: Solo SuperAdmin
+      allow delete: if isSuperAdmin();
+    }
+    
+    // Denegar acceso por defecto a cualquier otra colección
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

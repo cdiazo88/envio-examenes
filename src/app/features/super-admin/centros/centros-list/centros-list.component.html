@@ -1,0 +1,144 @@
+<div class="p-6">
+  <!-- Header -->
+  <div class="flex justify-between items-center mb-6">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800">Centros de Salud</h2>
+      <p class="text-gray-600 mt-1">Gestiona los centros médicos de la plataforma</p>
+    </div>
+    <button 
+      (click)="navigateToCreate()"
+      class="btn btn-primary flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Nuevo Centro
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="flex justify-center items-center py-12">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && centros.length === 0" class="bg-white rounded-lg shadow p-12 text-center">
+    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+    </svg>
+    <h3 class="mt-4 text-lg font-medium text-gray-900">No hay centros registrados</h3>
+    <p class="mt-1 text-gray-500">Comienza creando el primer centro de salud</p>
+    <button 
+      (click)="navigateToCreate()"
+      class="mt-6 btn btn-primary">
+      Crear Primer Centro
+    </button>
+  </div>
+
+  <!-- Table -->
+  <div *ngIf="!loading && centros.length > 0" class="bg-white rounded-lg shadow overflow-hidden">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Centro de Salud
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Administrador
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Contacto
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Estado
+          </th>
+          <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Acciones
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        <tr *ngFor="let centro of centros" class="hover:bg-gray-50 transition-colors">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="flex items-center">
+              <div class="flex-shrink-0 h-10 w-10">
+                <div class="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                  <span class="text-primary-600 font-semibold text-sm">
+                    {{ centro.nombre.substring(0, 2).toUpperCase() }}
+                  </span>
+                </div>
+              </div>
+              <div class="ml-4">
+                <div class="text-sm font-medium text-gray-900">{{ centro.nombre }}</div>
+                <div class="text-sm text-gray-500">{{ centro.direccion }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">{{ centro.adminNombre }} {{ centro.adminApellido }}</div>
+            <div class="text-sm text-gray-500">{{ centro.adminEmail }}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">{{ centro.telefono }}</div>
+            <div class="text-sm text-gray-500">{{ centro.email }}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <button 
+              (click)="toggleActivo(centro)"
+              [class]="centro.activo ? 'badge badge-success' : 'badge badge-danger'">
+              {{ centro.activo ? 'Activo' : 'Inactivo' }}
+            </button>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <button 
+              (click)="navigateToEdit(centro.id!)"
+              class="text-primary-600 hover:text-primary-900 mr-4"
+              title="Editar">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+            <button 
+              (click)="openDeleteModal(centro)"
+              class="text-red-600 hover:text-red-900"
+              title="Eliminar">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div *ngIf="showDeleteModal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">Confirmar Eliminación</h3>
+      <button (click)="closeDeleteModal()" class="modal-close">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="text-gray-700">
+        ¿Estás seguro de que deseas eliminar el centro 
+        <strong>{{ centroToDelete?.nombre }}</strong>?
+      </p>
+      <p class="text-red-600 text-sm mt-2">
+        Esta acción también eliminará al administrador asociado y no se puede deshacer.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button (click)="closeDeleteModal()" class="btn btn-secondary">
+        Cancelar
+      </button>
+      <button (click)="confirmDelete()" class="btn btn-danger">
+        Eliminar
+      </button>
+    </div>
+  </div>
+</div>

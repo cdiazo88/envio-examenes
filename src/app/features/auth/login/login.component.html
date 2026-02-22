@@ -1,0 +1,95 @@
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700 px-4 py-12">
+  <div class="max-w-md w-full">
+    <!-- Logo y Título -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full mb-4">
+        <svg class="w-10 h-10 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+        </svg>
+      </div>
+      <h1 class="text-3xl font-bold text-white">Sistema de Exámenes</h1>
+      <p class="text-primary-100 mt-2">Gestión de Resultados Médicos</p>
+    </div>
+
+    <!-- Formulario -->
+    <div class="bg-white rounded-lg shadow-xl p-8">
+      <h2 class="text-2xl font-semibold text-gray-800 mb-6">Iniciar Sesión</h2>
+
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+        <!-- Email -->
+        <div class="mb-5">
+          <label for="email" class="block text-sm font-medium text-gray-700 mb-2">
+            Correo Electrónico
+          </label>
+          <input
+            type="email"
+            id="email"
+            formControlName="email"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+            [class.border-danger-500]="email?.invalid && email?.touched"
+            placeholder="correo@ejemplo.com"
+          />
+          <div *ngIf="email?.invalid && email?.touched" class="mt-1 text-sm text-danger-600">
+            <span *ngIf="email?.errors?.['required']">El correo es requerido</span>
+            <span *ngIf="email?.errors?.['email']">El correo no es válido</span>
+          </div>
+        </div>
+
+        <!-- Contraseña -->
+        <div class="mb-6">
+          <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+            Contraseña
+          </label>
+          <input
+            type="password"
+            id="password"
+            formControlName="password"
+            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+            [class.border-danger-500]="password?.invalid && password?.touched"
+            placeholder="••••••••"
+          />
+          <div *ngIf="password?.invalid && password?.touched" class="mt-1 text-sm text-danger-600">
+            <span *ngIf="password?.errors?.['required']">La contraseña es requerida</span>
+            <span *ngIf="password?.errors?.['minlength']">Mínimo 6 caracteres</span>
+          </div>
+        </div>
+
+        <!-- Error Message -->
+        <div *ngIf="errorMessage" class="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg">
+          <p class="text-sm text-danger-700">{{ errorMessage }}</p>
+        </div>
+
+        <!-- Botón Submit -->
+        <button
+          type="submit"
+          [disabled]="loading"
+          class="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span *ngIf="!loading">Ingresar</span>
+          <span *ngIf="loading" class="flex items-center justify-center">
+            <svg class="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Iniciando sesión...
+          </span>
+        </button>
+
+        <!-- Recuperar contraseña -->
+        <div class="mt-4 text-center">
+          <a
+            routerLink="/auth/reset-password"
+            class="text-sm text-primary-600 hover:text-primary-700 font-medium"
+          >
+            ¿Olvidaste tu contraseña?
+          </a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-8 text-center text-primary-100 text-sm">
+      <p>&copy; 2026 Sistema de Gestión de Exámenes. Todos los derechos reservados.</p>
+    </div>
+  </div>
+</div>

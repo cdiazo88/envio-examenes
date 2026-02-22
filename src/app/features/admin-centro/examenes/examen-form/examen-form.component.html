@@ -1,0 +1,287 @@
+<div class="p-6 max-w-5xl mx-auto">
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
+      <a routerLink="/admin-centro/examenes" class="hover:text-primary-600">Exámenes</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="text-gray-900">Nuevo Examen</span>
+    </div>
+    <h2 class="text-2xl font-bold text-gray-800">Cargar Nuevo Examen</h2>
+    <p class="text-gray-600 mt-1">Sube resultados de exámenes para pacientes registrados</p>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading && (pacientes.length === 0 && entidades.length === 0)" class="flex justify-center items-center py-12">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+  </div>
+
+  <!-- Form -->
+  <form *ngIf="!loading || (pacientes.length > 0 || entidades.length > 0)" [formGroup]="examenForm" (ngSubmit)="onSubmit()" class="space-y-6">
+    
+    <!-- Destinatario Card -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Información del Destinatario</h3>
+      </div>
+      <div class="card-body">
+        <div class="grid grid-cols-1 gap-6">
+          
+          <!-- Paciente -->
+          <div class="form-group">
+            <label for="destinatarioId" class="form-label">
+              Paciente <span class="text-red-500">*</span>
+            </label>
+            <input type="hidden" formControlName="destinatarioId">
+
+            <div class="search-wrapper">
+              <div class="relative">
+                <input
+                  id="destinatarioId"
+                  type="text"
+                  class="form-input pr-10"
+                  [class.input-error]="hasError('destinatarioId', 'required')"
+                  [value]="pacienteSearch"
+                  (input)="onPacienteSearchChange($any($event.target).value)"
+                  (focus)="onPacienteSearchFocus()"
+                  (blur)="hidePacienteResults()"
+                  placeholder="Buscar por nombre, CI/RUT, email o tipo...">
+
+                <button
+                  *ngIf="selectedPaciente"
+                  type="button"
+                  class="absolute inset-y-0 right-0 my-auto mr-3 text-gray-400 hover:text-gray-700"
+                  (click)="clearPacienteSelection()"
+                  aria-label="Limpiar selección de paciente">
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+
+              <div class="search-results" *ngIf="showPacienteResults && filteredPacientes.length > 0">
+                <button
+                  *ngFor="let paciente of filteredPacientes"
+                  type="button"
+                  class="search-result-item"
+                  (mousedown)="$event.preventDefault()"
+                  (click)="selectPaciente(paciente)">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="text-left">
+                      <p class="text-sm font-medium text-gray-900">{{ getDestinatarioNombre(paciente) }}</p>
+                      <p class="text-xs text-gray-500">CI/RUT: {{ paciente.cedula }} · {{ paciente.email }}</p>
+                    </div>
+                    <span
+                      class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
+                      [class]="paciente.entidadId ? 'bg-primary-100 text-primary-700' : 'bg-secondary-100 text-secondary-700'">
+                      {{ paciente.entidadId ? 'Mutual' : 'Particular' }}
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              <div class="search-results-empty" *ngIf="showPacienteResults && pacienteSearch && filteredPacientes.length === 0">
+                No se encontraron pacientes con ese criterio.
+              </div>
+            </div>
+
+            <p *ngIf="getErrorMessage('destinatarioId')" class="form-error">
+              {{ getErrorMessage('destinatarioId') }}
+            </p>
+            <p *ngIf="pacientes.length === 0" class="text-sm text-amber-600 mt-1">
+              ⚠️ No hay pacientes registrados.
+              <a routerLink="/admin-centro/pacientes" class="text-primary-600 hover:underline">
+                Crear paciente
+              </a>
+            </p>
+            <p *ngIf="selectedPaciente" class="text-sm text-gray-600 mt-1">
+              Tipo de paciente: <span class="font-medium">{{ getPacienteTipo(selectedPaciente) }}</span>
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Examen Info Card -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Información del Examen</h3>
+      </div>
+      <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Tipo de Examen -->
+          <div class="form-group">
+            <label for="tipoExamen" class="form-label">
+              Tipo de Examen <span class="text-red-500">*</span>
+            </label>
+            <select
+              id="tipoExamen"
+              formControlName="tipoExamen"
+              class="form-input"
+              [class.input-error]="hasError('tipoExamen', 'required')">
+              <option value="">Seleccionar tipo...</option>
+              <option *ngFor="let tipo of tiposExamen" [value]="tipo">
+                {{ tipo }}
+              </option>
+            </select>
+            <p *ngIf="getErrorMessage('tipoExamen')" class="form-error">
+              {{ getErrorMessage('tipoExamen') }}
+            </p>
+          </div>
+
+          <!-- Tipo Examen Custom (si selecciona "Otro") -->
+          <div class="form-group" *ngIf="examenForm.get('tipoExamen')?.value === 'Otro'">
+            <label for="tipoExamenCustom" class="form-label">
+              Especificar tipo de examen <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="tipoExamenCustom"
+              type="text"
+              formControlName="tipoExamenCustom"
+              class="form-input"
+              [class.input-error]="hasError('tipoExamenCustom', 'required')"
+              placeholder="Ej: Cultivo de Sangre">
+            <p *ngIf="getErrorMessage('tipoExamenCustom')" class="form-error">
+              {{ getErrorMessage('tipoExamenCustom') }}
+            </p>
+          </div>
+
+          <!-- Fecha de Realización -->
+          <div class="form-group">
+            <label for="fechaRealizacion" class="form-label">
+              Fecha de Realización <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="fechaRealizacion"
+              type="date"
+              formControlName="fechaRealizacion"
+              class="form-input"
+              [class.input-error]="hasError('fechaRealizacion', 'required')">
+            <p *ngIf="getErrorMessage('fechaRealizacion')" class="form-error">
+              {{ getErrorMessage('fechaRealizacion') }}
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Descripción -->
+        <div class="form-group mt-6">
+          <label for="descripcion" class="form-label">
+            Descripción
+          </label>
+          <textarea
+            id="descripcion"
+            formControlName="descripcion"
+            class="form-input"
+            rows="3"
+            placeholder="Descripción breve del examen realizado..."></textarea>
+        </div>
+
+        <!-- Observaciones -->
+        <div class="form-group mt-6">
+          <label for="observaciones" class="form-label">
+            Observaciones
+          </label>
+          <textarea
+            id="observaciones"
+            formControlName="observaciones"
+            class="form-input"
+            rows="3"
+            placeholder="Observaciones adicionales o instrucciones para el destinatario..."></textarea>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Archivos Card -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Archivos del Examen</h3>
+        <p class="text-sm text-gray-500 mt-1">Formatos permitidos: PDF, JPG, PNG (máx. 10MB por archivo)</p>
+      </div>
+      <div class="card-body">
+        
+        <!-- File Input -->
+        <div class="file-upload-area">
+          <input
+            type="file"
+            id="fileInput"
+            multiple
+            accept=".pdf,.jpg,.jpeg,.png"
+            (change)="onFileSelected($event)"
+            class="file-input">
+          <label for="fileInput" class="file-label">
+            <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <span class="text-primary-600 font-medium">Click para seleccionar archivos</span>
+            <span class="text-gray-500 text-sm mt-1">o arrastra y suelta aquí</span>
+          </label>
+        </div>
+
+        <!-- Selected Files List -->
+        <div *ngIf="selectedFiles.length > 0" class="mt-4">
+          <h4 class="text-sm font-medium text-gray-700 mb-2">
+            Archivos seleccionados ({{ selectedFiles.length }})
+          </h4>
+          <ul class="space-y-2">
+            <li *ngFor="let file of selectedFiles; let i = index" 
+                class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div class="flex items-center gap-3">
+                <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <div>
+                  <p class="text-sm font-medium text-gray-900">{{ file.name }}</p>
+                  <p class="text-xs text-gray-500">{{ (file.size / 1024 / 1024).toFixed(2) }} MB</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="removeFile(i)"
+                class="text-red-600 hover:text-red-800">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="flex justify-end gap-4">
+      <button
+        type="button"
+        (click)="cancel()"
+        class="btn btn-secondary"
+        [disabled]="loading">
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="loading || pacientes.length === 0">
+        <span *ngIf="!loading">
+          <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          </svg>
+          Cargar Examen
+        </span>
+        <span *ngIf="loading" class="flex items-center gap-2">
+          <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Cargando...
+        </span>
+      </button>
+    </div>
+
+  </form>
+</div>

@@ -1,0 +1,105 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Función helper para verificar autenticación
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Función helper para verificar roles desde custom claims
+    function hasRole(role) {
+      return isAuthenticated() && request.auth.token.role == role;
+    }
+    
+    // Función helper para verificar si es SuperAdmin
+    function isSuperAdmin() {
+      return hasRole('super_admin');
+    }
+    
+    // Función helper para verificar si es Admin de Centro
+    function isAdminCentro() {
+      return hasRole('admin_centro');
+    }
+    
+    // Función helper para verificar si pertenece al centro
+    function belongsToCentro(centroId) {
+      return isAuthenticated() && 
+             request.auth.token.centroSaludId == centroId;
+    }
+    
+    // ==========================================
+    // ARCHIVOS DE EXÁMENES
+    // Path: examenes/{centroSaludId}/{destinatarioId}/{fileName}
+    // ==========================================
+    match /examenes/{centroSaludId}/{destinatarioId}/{fileName} {
+      // Leer: SuperAdmin, Admin del centro, o el destinatario
+      allow read: if isAuthenticated() && 
+                     (isSuperAdmin() || 
+                      belongsToCentro(centroSaludId) ||
+                      request.auth.uid == destinatarioId);
+      
+      // Escribir (subir): Solo SuperAdmin o Admin del centro
+      allow write: if isAuthenticated() && 
+                      (isSuperAdmin() || 
+                       belongsToCentro(centroSaludId)) &&
+                      // Validar tipo de archivo (PDF o imágenes)
+                      (request.resource.contentType.matches('application/pdf') ||
+                       request.resource.contentType.matches('image/.*')) &&
+                      // Limitar tamaño a 10MB
+                      request.resource.size < 10 * 1024 * 1024;
+      
+      // Eliminar: Solo SuperAdmin o Admin del centro
+      allow delete: if isAuthenticated() && 
+                       (isSuperAdmin() || 
+                        belongsToCentro(centroSaludId));
+    }
+    
+    // ==========================================
+    // LOGOS DE CENTROS DE SALUD
+    // Path: centros/{centroId}/logo.{ext}
+    // ==========================================
+    match /centros/{centroId}/{fileName} {
+      // Leer: Todos los autenticados pueden ver logos
+      allow read: if isAuthenticated();
+      
+      // Escribir: Solo SuperAdmin o Admin del centro específico
+      allow write: if isAuthenticated() && 
+                      (isSuperAdmin() || 
+                       belongsToCentro(centroId)) &&
+                      // Solo imágenes
+                      request.resource.contentType.matches('image/.*') &&
+                      // Limitar tamaño a 2MB
+                      request.resource.size < 2 * 1024 * 1024;
+      
+      // Eliminar: Solo SuperAdmin
+      allow delete: if isSuperAdmin();
+    }
+    
+    // ==========================================
+    // AVATARES DE USUARIOS
+    // Path: avatars/{userId}.{ext}
+    // ==========================================
+    match /avatars/{userId} {
+      // Leer: Todos los autenticados
+      allow read: if isAuthenticated();
+      
+      // Escribir: El propio usuario o SuperAdmin
+      allow write: if isAuthenticated() && 
+                      (request.auth.uid == userId || isSuperAdmin()) &&
+                      // Solo imágenes
+                      request.resource.contentType.matches('image/.*') &&
+                      // Limitar tamaño a 1MB
+                      request.resource.size < 1 * 1024 * 1024;
+      
+      // Eliminar: El propio usuario o SuperAdmin
+      allow delete: if isAuthenticated() && 
+                       (request.auth.uid == userId || isSuperAdmin());
+    }
+    
+    // Denegar acceso a cualquier otra ruta
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

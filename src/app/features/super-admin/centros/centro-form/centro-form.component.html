@@ -1,0 +1,225 @@
+<div class="p-6 max-w-4xl mx-auto">
+  <!-- Header -->
+  <div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
+      <a routerLink="/super-admin/centros" class="hover:text-primary-600">Centros de Salud</a>
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+      </svg>
+      <span class="text-gray-900">{{ isEditMode ? 'Editar' : 'Nuevo Centro' }}</span>
+    </div>
+    <h2 class="text-2xl font-bold text-gray-800">
+      {{ isEditMode ? 'Editar Centro de Salud' : 'Nuevo Centro de Salud' }}
+    </h2>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading && isEditMode" class="flex justify-center items-center py-12">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+  </div>
+
+  <!-- Form -->
+  <form *ngIf="!loading || !isEditMode" [formGroup]="centroForm" (ngSubmit)="onSubmit()" class="space-y-6">
+    
+    <!-- Centro Information Card -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Información del Centro</h3>
+      </div>
+      <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Nombre -->
+          <div class="form-group md:col-span-2">
+            <label for="nombre" class="form-label">
+              Nombre del Centro <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="nombre"
+              type="text"
+              formControlName="nombre"
+              class="form-input"
+              [class.input-error]="hasError('nombre', 'required') || hasError('nombre', 'minlength')"
+              placeholder="Ej: Centro Médico Central"
+            />
+            <p *ngIf="getErrorMessage('nombre')" class="form-error">
+              {{ getErrorMessage('nombre') }}
+            </p>
+          </div>
+
+          <!-- Dirección -->
+          <div class="form-group md:col-span-2">
+            <label for="direccion" class="form-label">
+              Dirección <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="direccion"
+              type="text"
+              formControlName="direccion"
+              class="form-input"
+              [class.input-error]="hasError('direccion', 'required')"
+              placeholder="Calle Principal #123, Ciudad"
+            />
+            <p *ngIf="getErrorMessage('direccion')" class="form-error">
+              {{ getErrorMessage('direccion') }}
+            </p>
+          </div>
+
+          <!-- Teléfono -->
+          <div class="form-group">
+            <label for="telefono" class="form-label">
+              Teléfono <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="telefono"
+              type="tel"
+              formControlName="telefono"
+              class="form-input"
+              [class.input-error]="hasError('telefono', 'required') || hasError('telefono', 'pattern')"
+              placeholder="1234567890"
+            />
+            <p *ngIf="getErrorMessage('telefono')" class="form-error">
+              {{ getErrorMessage('telefono') }}
+            </p>
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label for="email" class="form-label">
+              Email del Centro <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="email"
+              type="email"
+              formControlName="email"
+              class="form-input"
+              [class.input-error]="hasError('email', 'required') || hasError('email', 'email')"
+              placeholder="contacto@centro.com"
+            />
+            <p *ngIf="getErrorMessage('email')" class="form-error">
+              {{ getErrorMessage('email') }}
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Information Card -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Administrador del Centro</h3>
+        <p *ngIf="isEditMode" class="text-sm text-amber-600 mt-1">
+          Para cambiar el email o contraseña del administrador, debes hacerlo desde la configuración de usuarios.
+        </p>
+      </div>
+      <div class="card-body">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Admin Nombre -->
+          <div class="form-group">
+            <label for="adminNombre" class="form-label">
+              Nombre <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="adminNombre"
+              type="text"
+              formControlName="adminNombre"
+              class="form-input"
+              [class.input-error]="hasError('adminNombre', 'required')"
+              placeholder="Juan"
+            />
+            <p *ngIf="getErrorMessage('adminNombre')" class="form-error">
+              {{ getErrorMessage('adminNombre') }}
+            </p>
+          </div>
+
+          <!-- Admin Apellido -->
+          <div class="form-group">
+            <label for="adminApellido" class="form-label">
+              Apellido <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="adminApellido"
+              type="text"
+              formControlName="adminApellido"
+              class="form-input"
+              [class.input-error]="hasError('adminApellido', 'required')"
+              placeholder="Pérez"
+            />
+            <p *ngIf="getErrorMessage('adminApellido')" class="form-error">
+              {{ getErrorMessage('adminApellido') }}
+            </p>
+          </div>
+
+          <!-- Admin Email -->
+          <div class="form-group" [class.opacity-60]="isEditMode">
+            <label for="adminEmail" class="form-label">
+              Email <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="adminEmail"
+              type="email"
+              formControlName="adminEmail"
+              class="form-input"
+              [class.input-error]="hasError('adminEmail', 'required') || hasError('adminEmail', 'email')"
+              placeholder="admin@centro.com"
+            />
+            <p *ngIf="getErrorMessage('adminEmail')" class="form-error">
+              {{ getErrorMessage('adminEmail') }}
+            </p>
+          </div>
+
+          <!-- Admin Password (only in create mode) -->
+          <div class="form-group" *ngIf="!isEditMode">
+            <label for="adminPassword" class="form-label">
+              Contraseña <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="adminPassword"
+              type="password"
+              formControlName="adminPassword"
+              class="form-input"
+              [class.input-error]="hasError('adminPassword', 'required') || hasError('adminPassword', 'minlength')"
+              placeholder="Mínimo 6 caracteres"
+            />
+            <p *ngIf="getErrorMessage('adminPassword')" class="form-error">
+              {{ getErrorMessage('adminPassword') }}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">
+              Esta contraseña será enviada al administrador por correo electrónico.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="flex justify-end gap-4">
+      <button
+        type="button"
+        (click)="cancel()"
+        class="btn btn-secondary"
+        [disabled]="loading">
+        Cancelar
+      </button>
+      <button
+        type="submit"
+        class="btn btn-primary"
+        [disabled]="loading">
+        <span *ngIf="!loading">
+          {{ isEditMode ? 'Actualizar Centro' : 'Crear Centro' }}
+        </span>
+        <span *ngIf="loading" class="flex items-center gap-2">
+          <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Guardando...
+        </span>
+      </button>
+    </div>
+
+  </form>
+</div>

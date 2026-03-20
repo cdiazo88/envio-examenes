@@ -198,11 +198,40 @@ npm start                 # Inicia servidor de desarrollo
 
 # Build
 npm run build            # Build de producción
+npm run build:prod       # Build explícito de producción
+npm run build:dev        # Build de desarrollo
 npm run watch            # Build en modo watch
 
 # Tests
 npm test                 # Ejecuta tests unitarios
 ```
+
+## 🤖 CI/CD con GitHub Actions
+
+Se agregaron 2 workflows:
+
+- `.github/workflows/ci.yml`: valida build de producción en Pull Requests a `main`.
+- `.github/workflows/deploy-firebase.yml`: despliega a Firebase en push a `main` y también manualmente (`workflow_dispatch`).
+
+### Secretos requeridos en GitHub
+
+En tu repositorio, configura el secret:
+
+- `FIREBASE_SERVICE_ACCOUNT`: JSON completo de una Service Account con permisos de deploy en Firebase.
+
+Pasos sugeridos:
+
+1. Firebase Console → Project Settings → Service accounts.
+2. Genera una nueva clave privada JSON.
+3. En GitHub: Settings → Secrets and variables → Actions → New repository secret.
+4. Nombre: `FIREBASE_SERVICE_ACCOUNT`.
+5. Pega el contenido completo del JSON.
+
+### Flujo de despliegue
+
+- PR a `main`: corre CI y valida que el build productivo compile.
+- Merge/push a `main`: ejecuta deploy automático de `hosting`, `functions`, `firestore rules/indexes` y `storage rules`.
+- Manual: desde la pestaña Actions puedes ejecutar el workflow `Deploy Firebase` cuando lo necesites.
 
 ## 🛡️ Seguridad
 

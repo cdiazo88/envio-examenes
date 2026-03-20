@@ -8,12 +8,14 @@
   "scripts": {
     "build": "tsc",
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "reset:prod": "npm run build && node lib/reset-production.js"
   },
   "dependencies": {
     "fe-envio-examenes": "file:..",
     "firebase-admin": "^12.7.0",
-    "firebase-functions": "^5.1.1"
+    "firebase-functions": "^5.1.1",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

@@ -47,10 +47,10 @@
             </p>
           </div>
 
-          <!-- RUC -->
+          <!-- RUT -->
           <div class="form-group">
             <label for="ruc" class="form-label">
-              RUC <span class="text-red-500">*</span>
+              RUT <span class="text-red-500">*</span>
             </label>
             <input
               id="ruc"
@@ -58,8 +58,7 @@
               formControlName="ruc"
               class="form-input"
               [class.input-error]="hasError('ruc', 'required') || hasError('ruc', 'pattern')"
-              placeholder="1234567890001"
-              maxlength="13">
+              placeholder="12.345.678-5">
             <p *ngIf="getErrorMessage('ruc')" class="form-error">
               {{ getErrorMessage('ruc') }}
             </p>
@@ -207,51 +206,14 @@
     </div>
 
   </form>
-  <div *ngIf="showCredentialsModal" class="modal-overlay">
-    <div class="modal-content max-w-lg w-full">
-      <div class="modal-header">
-        <h3 class="modal-title">Credenciales de entidad</h3>
-        <button (click)="closeCredentialsModal()" class="modal-close" type="button">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal-body space-y-4">
-        <div>
-          <p class="text-sm text-gray-500">Nombre</p>
-          <p class="text-base font-medium text-gray-900">{{ credentialsNombre }}</p>
-        </div>
-
-        <div>
-          <p class="text-sm text-gray-500">Email</p>
-          <div class="flex items-center gap-2 mt-1">
-            <input class="form-input" [value]="credentialsEmail" readonly>
-            <button type="button" class="btn btn-secondary whitespace-nowrap" (click)="copyEmail()">Copiar</button>
-          </div>
-        </div>
-
-        <div>
-          <p class="text-sm text-gray-500">Contraseña</p>
-          <div class="flex items-center gap-2 mt-1">
-            <input class="form-input font-mono" [value]="credentialsPassword" readonly>
-            <button type="button" class="btn btn-secondary whitespace-nowrap" (click)="copyPassword()">Copiar</button>
-          </div>
-        </div>
-
-        <button type="button" class="btn btn-primary" (click)="copyAllCredentials()">Copiar credenciales completas</button>
-
-        <p *ngIf="copiedState !== 'none'" class="text-sm text-green-700">Copiado al portapapeles</p>
-
-        <p *ngIf="credentialsWarning" class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
-          {{ credentialsWarning }}
-        </p>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" (click)="closeCredentialsModal()">Entendido</button>
-      </div>
-    </div>
-  </div>
 </div>
+
+<app-credentials-modal
+  [isOpen]="showCredentialsModal"
+  title="Credenciales de acceso"
+  [nombre]="credentialsNombre"
+  [email]="credentialsEmail"
+  [password]="credentialsPassword"
+  [warningText]="credentialsWarning"
+  (closed)="closeCredentialsModal()">
+</app-credentials-modal>

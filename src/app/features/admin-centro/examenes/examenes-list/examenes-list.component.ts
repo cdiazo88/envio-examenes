@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ExamenService, AuthService } from '@core/services';
 import { Examen } from '@core/models';
+import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
 
 @Component({
   selector: 'app-examenes-list',
@@ -68,6 +69,7 @@ import { Examen } from '@core/models';
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Realización</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archivos</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
@@ -76,7 +78,7 @@ import { Examen } from '@core/models';
                 <div class="text-sm font-medium text-gray-900">{{ examen.destinatarioNombre }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900">{{ examen.destinatarioDocumento || 'No registrado' }}</div>
+                <div class="text-sm text-gray-900">{{ formatRut(examen.destinatarioDocumento || '') || 'No registrado' }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm text-gray-900">{{ examen.tipoExamen }}</div>
@@ -90,6 +92,23 @@ import { Examen } from '@core/models';
               <td class="px-6 py-4 whitespace-nowrap">
                 <span [class]="getEstadoClass(examen.estado)">{{ getEstadoLabel(examen.estado) }}</span>
               </td>
+              <td class="px-6 py-4 whitespace-nowrap text-right">
+                <div class="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    class="text-primary-700 hover:text-primary-900 text-sm font-medium"
+                    (click)="navigateToEdit(examen)">
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    class="text-red-600 hover:text-red-800 text-sm font-medium"
+                    [disabled]="deleting"
+                    (click)="onDelete(examen)">
+                    Eliminar
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -101,6 +120,7 @@ export class ExamenesListComponent implements OnInit {
   examenes: Examen[] = [];
   examenesFiltrados: Examen[] = [];
   loading = false;
+  deleting = false;
   searchTerm = '';
 
   constructor(
@@ -133,6 +153,7 @@ export class ExamenesListComponent implements OnInit {
 
   filtrarExamenes(): void {
     const term = this.searchTerm.toLowerCase().trim();
+    const rutTerm = normalizeRut(this.searchTerm);
     if (!term) {
       this.examenesFiltrados = this.examenes;
       return;
@@ -141,14 +162,38 @@ export class ExamenesListComponent implements OnInit {
     this.examenesFiltrados = this.examenes.filter(examen => {
       const nombre = examen.destinatarioNombre.toLowerCase();
       const documento = (examen.destinatarioDocumento || '').toLowerCase();
+      const documentoNormalized = normalizeRut(examen.destinatarioDocumento || '');
       const tipoExamen = examen.tipoExamen.toLowerCase();
 
-      return nombre.includes(term) || documento.includes(term) || tipoExamen.includes(term);
+      return nombre.includes(term) || documento.includes(term) || documentoNormalized.includes(rutTerm) || tipoExamen.includes(term);
     });
   }
 
   navigateToCreate(): void {
     this.router.navigate(['/admin-centro/examenes/nuevo']);
+  }
+
+  navigateToEdit(examen: Examen): void {
+    this.router.navigate(['/admin-centro/examenes/editar', examen.id]);
+  }
+
+  onDelete(examen: Examen): void {
+    const confirmed = confirm(`¿Eliminar el examen "${examen.tipoExamen}" de ${examen.destinatarioNombre}? Esta acción no se puede deshacer.`);
+    if (!confirmed) return;
+
+    this.deleting = true;
+    this.examenService.deleteExamen(examen.id).subscribe({
+      next: () => {
+        this.examenes = this.examenes.filter(item => item.id !== examen.id);
+        this.filtrarExamenes();
+        this.deleting = false;
+      },
+      error: (error) => {
+        console.error('Error al eliminar examen:', error);
+        alert('No se pudo eliminar el examen. Intenta nuevamente.');
+        this.deleting = false;
+      }
+    });
   }
 
   getFecha(dateValue: unknown): string {
@@ -172,6 +217,10 @@ export class ExamenesListComponent implements OnInit {
     if (estado === 'visualizado') return 'badge badge-primary';
     if (estado === 'descargado') return 'badge badge-secondary';
     return 'badge';
+  }
+
+  formatRut(value: string): string {
+    return formatRutChile(value);
   }
 
   private parseDate(value: unknown): Date | null {

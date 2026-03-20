@@ -7,9 +7,11 @@ service firebase.storage {
       return request.auth != null;
     }
     
-    // Función helper para verificar roles desde custom claims
+    // Función helper para verificar roles desde Firestore (colección users)
     function hasRole(role) {
-      return isAuthenticated() && request.auth.token.role == role;
+      return isAuthenticated() &&
+             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == role;
     }
     
     // Función helper para verificar si es SuperAdmin
@@ -25,7 +27,8 @@ service firebase.storage {
     // Función helper para verificar si pertenece al centro
     function belongsToCentro(centroId) {
       return isAuthenticated() && 
-             request.auth.token.centroSaludId == centroId;
+             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.centroSaludId == centroId;
     }
     
     // ==========================================

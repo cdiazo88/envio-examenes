@@ -38,7 +38,7 @@
             [class.opacity-60]="isEditMode">
             <option value="">🏠 Particular (con acceso propio)</option>
             <option *ngFor="let entidad of entidades" [value]="entidad.id">
-              🏢 {{ entidad.nombreEntidad }} - {{ entidad.ruc }}
+              🏢 {{ entidad.nombreEntidad }} - RUT: {{ entidad.ruc }}
             </option>
           </select>
           <p class="text-xs text-gray-600 mt-2">
@@ -98,10 +98,10 @@
             </p>
           </div>
 
-          <!-- Cédula -->
+          <!-- RUT -->
           <div class="form-group">
             <label for="cedula" class="form-label">
-              Cédula <span class="text-red-500">*</span>
+              RUT <span class="text-red-500">*</span>
             </label>
             <input
               id="cedula"
@@ -109,8 +109,8 @@
               formControlName="cedula"
               class="form-input"
               [class.input-error]="hasError('cedula', 'required') || hasError('cedula', 'pattern')"
-              placeholder="1234567890"
-              maxlength="10">
+              placeholder="12.345.678-5"
+              maxlength="12">
             <p *ngIf="getErrorMessage('cedula')" class="form-error">
               {{ getErrorMessage('cedula') }}
             </p>
@@ -328,7 +328,7 @@
 
 <app-credentials-modal
   [isOpen]="showCredentialsModal"
-  title="Credenciales de paciente"
+  title="Credenciales de acceso"
   [nombre]="credentialsNombre"
   [email]="credentialsEmail"
   [password]="credentialsPassword"

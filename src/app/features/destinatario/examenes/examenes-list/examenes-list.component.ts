@@ -2,8 +2,9 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Examen, Entidad, Paciente } from '@core/models';
 import { AuthService, DestinatarioService, ExamenService } from '@core/services';
-import { forkJoin } from 'rxjs';
+import { firstValueFrom, forkJoin } from 'rxjs';
 import { FormsModule } from '@angular/forms';
+import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
 
 @Component({
   selector: 'app-examenes-list',
@@ -24,7 +25,7 @@ import { FormsModule } from '@angular/forms';
             type="text"
             [(ngModel)]="rutFilter"
             (input)="applyRutFilter()"
-            placeholder="Ej: 1670254711"
+            placeholder="Ej: 12.345.678-5"
             class="form-input">
           <p class="text-sm text-gray-500 mt-2">
             Mostrando {{ filteredExamenes.length }} de {{ examenes.length }} exámenes
@@ -75,7 +76,7 @@ import { FormsModule } from '@angular/forms';
           <tbody class="bg-white divide-y divide-gray-200">
             <tr *ngFor="let examen of filteredExamenes" class="hover:bg-gray-50 transition-colors">
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ examen.destinatarioNombre }}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ examen.destinatarioDocumento || 'No disponible' }}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ formatRut(examen.destinatarioDocumento || '') || 'No disponible' }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ examen.tipoExamen }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ getFecha(examen.fechaRealizacion || examen.fechaCreacion) }}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -94,6 +95,13 @@ import { FormsModule } from '@angular/forms';
                     (click)="openPdf(examen)"
                     [disabled]="!hasPdfFile(examen)">
                     PDF
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    (click)="downloadExamenZip(examen)"
+                    [disabled]="isDownloadingZip(examen)">
+                    {{ isDownloadingZip(examen) ? 'Comprimiendo...' : 'ZIP' }}
                   </button>
                 </div>
               </td>
@@ -156,6 +164,7 @@ export class ExamenesListComponent implements OnInit {
   selectedExamen: Examen | null = null;
   viewerArchivos: Examen['archivos'] = [];
   currentFileIndex = 0;
+  private downloadingZipExamIds = new Set<string>();
 
   constructor(
     private authService: AuthService,
@@ -289,6 +298,7 @@ export class ExamenesListComponent implements OnInit {
 
   applyRutFilter(): void {
     const term = this.rutFilter.toLowerCase().trim();
+    const rutTerm = normalizeRut(this.rutFilter);
 
     if (!term) {
       this.filteredExamenes = this.examenes;
@@ -297,8 +307,13 @@ export class ExamenesListComponent implements OnInit {
 
     this.filteredExamenes = this.examenes.filter(examen => {
       const documento = (examen.destinatarioDocumento || '').toLowerCase();
-      return documento.includes(term);
+      const documentoNormalized = normalizeRut(examen.destinatarioDocumento || '');
+      return documento.includes(term) || documentoNormalized.includes(rutTerm);
     });
+  }
+
+  formatRut(value: string): string {
+    return formatRutChile(value);
   }
 
   downloadFile(url: string, fileName: string): void {
@@ -310,6 +325,39 @@ export class ExamenesListComponent implements OnInit {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  async downloadExamenZip(examen: Examen): Promise<void> {
+    if (!examen.id || !examen.archivos?.length) {
+      return;
+    }
+
+    this.downloadingZipExamIds.add(examen.id);
+
+    try {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        this.downloadAllFilesIndividually(examen);
+        alert('ZIP backend no disponible en entorno local. Se inició la descarga individual de los archivos.');
+        return;
+      }
+
+      const response = await firstValueFrom(this.examenService.generateExamenZip(examen.id));
+      this.downloadFile(response.downloadUrl, response.fileName || `${this.buildExamenZipName(examen)}.zip`);
+
+      if (response.failedFiles?.length) {
+        alert('El ZIP se generó con archivos faltantes. Revisa el detalle dentro del comprimido.');
+      }
+    } catch (error) {
+      console.error('Error al descargar ZIP del examen:', error);
+      this.downloadAllFilesIndividually(examen);
+      alert('No se pudo generar el ZIP del examen. Se inició la descarga individual de los archivos disponibles.');
+    } finally {
+      this.downloadingZipExamIds.delete(examen.id);
+    }
+  }
+
+  isDownloadingZip(examen: Examen): boolean {
+    return !!examen.id && this.downloadingZipExamIds.has(examen.id);
   }
 
   openImageViewer(examen: Examen): void {
@@ -367,6 +415,53 @@ export class ExamenesListComponent implements OnInit {
 
   hasPdfFile(examen: Examen): boolean {
     return examen.archivos.some(archivo => this.isPdf(archivo.tipo, archivo.nombre));
+  }
+
+  private buildExamenZipName(examen: Examen): string {
+    const destinatario = this.sanitizeFileName(examen.destinatarioNombre || 'destinatario');
+    const fecha = this.formatDateForFileName(examen.fechaRealizacion || examen.fechaCreacion || examen.fechaActualizacion);
+    return `${destinatario}_${fecha}`;
+  }
+
+  private buildZipEntryName(originalName: string, index: number): string {
+    const dotIndex = originalName.lastIndexOf('.');
+    const extension = dotIndex >= 0 ? originalName.slice(dotIndex) : '';
+    const baseName = dotIndex >= 0 ? originalName.slice(0, dotIndex) : originalName;
+    const safeName = this.sanitizeFileName(baseName) || `archivo_${index + 1}`;
+    return `${String(index + 1).padStart(2, '0')}_${safeName}${extension}`;
+  }
+
+  private formatDateForFileName(value: unknown): string {
+    const date = this.parseDate(value);
+    if (!date) {
+      return 'sin_fecha';
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  private sanitizeFileName(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase();
+  }
+
+  private downloadAllFilesIndividually(examen: Examen): void {
+    if (!examen.archivos?.length) {
+      return;
+    }
+
+    examen.archivos.forEach((archivo, index) => {
+      setTimeout(() => {
+        this.downloadFile(archivo.url, this.buildZipEntryName(archivo.nombre, index));
+      }, index * 200);
+    });
   }
 
   getFecha(value: unknown): string {

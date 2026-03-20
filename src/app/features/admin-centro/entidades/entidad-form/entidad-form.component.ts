@@ -4,12 +4,14 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { DestinatarioService, AuthService } from '@core/services';
 import { Entidad } from '@core/models';
+import { formatRutChile } from '@shared/utils/rut-chile.util';
+import { CredentialsModalComponent } from '@shared/components/credentials-modal/credentials-modal.component';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-entidad-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule, CredentialsModalComponent],
   templateUrl: './entidad-form.component.html',
   styleUrls: ['./entidad-form.component.scss']
 })
@@ -25,7 +27,6 @@ export class EntidadFormComponent implements OnInit {
   credentialsEmail = '';
   credentialsPassword = '';
   credentialsWarning = '';
-  copiedState: 'none' | 'email' | 'password' | 'all' = 'none';
 
   constructor(
     private fb: FormBuilder,
@@ -48,13 +49,20 @@ export class EntidadFormComponent implements OnInit {
   initForm(): void {
     this.entidadForm = this.fb.group({
       nombreEntidad: ['', [Validators.required, Validators.minLength(3)]],
-      ruc: ['', [Validators.required, Validators.pattern(/^\d{13}$/)]],
+      ruc: ['', [Validators.required, Validators.pattern(/^(\d{1,2}\.\d{3}\.\d{3}-[\dkK]|\d{7,8}[\dkK])$/)]],
       razonSocial: ['', [Validators.required]],
       contactoNombre: [''],
       email: ['', [Validators.required, Validators.email]],
       telefono: ['', [Validators.pattern(/^\d{7,15}$/)]],
       direccion: [''],
       generarCredenciales: [true]
+    });
+
+    this.entidadForm.get('ruc')?.valueChanges.subscribe((value: string) => {
+      const formatted = formatRutChile(value);
+      if (value !== formatted) {
+        this.entidadForm.get('ruc')?.setValue(formatted, { emitEvent: false });
+      }
     });
   }
 
@@ -179,46 +187,10 @@ export class EntidadFormComponent implements OnInit {
 
   closeCredentialsModal(): void {
     this.showCredentialsModal = false;
-    this.copiedState = 'none';
 
     if (this.shouldNavigateAfterModal) {
       this.shouldNavigateAfterModal = false;
       this.router.navigate(['/admin-centro/entidades']);
-    }
-  }
-
-  async copyEmail(): Promise<void> {
-    if (!this.credentialsEmail) return;
-    const copied = await this.copyToClipboard(this.credentialsEmail);
-    this.copiedState = copied ? 'email' : 'none';
-  }
-
-  async copyPassword(): Promise<void> {
-    if (!this.credentialsPassword) return;
-    const copied = await this.copyToClipboard(this.credentialsPassword);
-    this.copiedState = copied ? 'password' : 'none';
-  }
-
-  async copyAllCredentials(): Promise<void> {
-    const credentialsText = `Nombre: ${this.credentialsNombre}\nEmail: ${this.credentialsEmail}\nContraseña: ${this.credentialsPassword}`;
-    const copied = await this.copyToClipboard(credentialsText);
-    this.copiedState = copied ? 'all' : 'none';
-  }
-
-  private async copyToClipboard(text: string): Promise<boolean> {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      const success = document.execCommand('copy');
-      document.body.removeChild(textarea);
-      return success;
     }
   }
 
@@ -249,7 +221,7 @@ export class EntidadFormComponent implements OnInit {
       return `Mínimo ${minLength} caracteres`;
     }
     if (field.hasError('pattern')) {
-      if (fieldName === 'ruc') return 'RUC debe tener 13 dígitos';
+      if (fieldName === 'ruc') return 'RUT inválido. Formato esperado: 12.345.678-5';
       if (fieldName === 'telefono') return 'Teléfono inválido (7-15 dígitos)';
       return 'Formato inválido';
     }

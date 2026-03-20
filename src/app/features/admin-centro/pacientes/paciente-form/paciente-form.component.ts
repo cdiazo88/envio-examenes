@@ -5,6 +5,7 @@ import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { DestinatarioService, AuthService } from '@core/services';
 import { Paciente, Entidad } from '@core/models';
 import { CredentialsModalComponent } from '@shared/components/credentials-modal/credentials-modal.component';
+import { formatRutChile, isRutChileValidFormat } from '@shared/utils/rut-chile.util';
 import { firstValueFrom } from 'rxjs';
 
 @Component({
@@ -52,7 +53,7 @@ export class PacienteFormComponent implements OnInit {
     this.pacienteForm = this.fb.group({
       nombre: ['', [Validators.required, Validators.minLength(2)]],
       apellido: ['', [Validators.required, Validators.minLength(2)]],
-      cedula: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+      cedula: ['', [Validators.required, Validators.pattern(/^(\d{1,2}\.\d{3}\.\d{3}-[\dkK]|\d{7,8}[\dkK])$/)]],
       email: ['', [Validators.required, Validators.email]],
       telefono: ['', [Validators.pattern(/^\d{7,15}$/)]],
       fechaNacimiento: ['', [Validators.required]],
@@ -66,6 +67,13 @@ export class PacienteFormComponent implements OnInit {
     // Escuchar cambios en el selector de entidad
     this.pacienteForm.get('entidadId')?.valueChanges.subscribe(entidadId => {
       this.onEntidadChange(entidadId);
+    });
+
+    this.pacienteForm.get('cedula')?.valueChanges.subscribe((value: string) => {
+      const formatted = formatRutChile(value);
+      if (value !== formatted) {
+        this.pacienteForm.get('cedula')?.setValue(formatted, { emitEvent: false });
+      }
     });
   }
 
@@ -111,7 +119,7 @@ export class PacienteFormComponent implements OnInit {
           this.pacienteForm.patchValue({
             nombre: paciente.nombre,
             apellido: paciente.apellido,
-            cedula: paciente.cedula,
+            cedula: formatRutChile(paciente.cedula),
             email: paciente.email,
             telefono: paciente.telefono,
             fechaNacimiento: fechaNac.toISOString().split('T')[0],
@@ -159,7 +167,7 @@ export class PacienteFormComponent implements OnInit {
         const pacienteData: Partial<Paciente> = {
           nombre: this.pacienteForm.value.nombre,
           apellido: this.pacienteForm.value.apellido,
-          cedula: this.pacienteForm.value.cedula,
+          cedula: formatRutChile(this.pacienteForm.value.cedula),
           telefono: this.pacienteForm.value.telefono,
           fechaNacimiento: new Date(this.pacienteForm.value.fechaNacimiento),
           genero: this.pacienteForm.value.genero,
@@ -191,6 +199,7 @@ export class PacienteFormComponent implements OnInit {
         const formValue = this.pacienteForm.getRawValue(); // Obtiene valores incluso de controles deshabilitados
         const pacienteData = {
           ...formValue,
+          cedula: formatRutChile(formValue.cedula),
           fechaNacimiento: new Date(formValue.fechaNacimiento),
           entidadId: formValue.entidadId || undefined
         };
@@ -290,9 +299,13 @@ export class PacienteFormComponent implements OnInit {
       return `Mínimo ${minLength} caracteres`;
     }
     if (field.hasError('pattern')) {
-      if (fieldName === 'cedula') return 'Cédula debe tener 10 dígitos';
+      if (fieldName === 'cedula') return 'RUT inválido. Formato esperado: 12.345.678-5';
       if (fieldName === 'telefono') return 'Teléfono inválido (7-15 dígitos)';
       return 'Formato inválido';
+    }
+
+    if (fieldName === 'cedula' && field.value && !isRutChileValidFormat(field.value)) {
+      return 'RUT inválido. Usa formato chileno, por ejemplo: 12.345.678-5';
     }
 
     return '';
@@ -307,5 +320,9 @@ export class PacienteFormComponent implements OnInit {
     if (!entidadId) return '';
     const entidad = this.entidades.find(e => e.id === entidadId);
     return entidad?.nombreEntidad || '';
+  }
+
+  formatRut(value: string): string {
+    return formatRutChile(value);
   }
 }

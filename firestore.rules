@@ -145,6 +145,24 @@ service cloud.firestore {
     }
     
     // ==========================================
+    // COLECCIÓN: catalogoExamenesCentro
+    // ==========================================
+    match /catalogoExamenesCentro/{itemId} {
+      // Leer: SuperAdmin o Admin del centro
+      allow read: if isAuthenticated() &&
+                     (isSuperAdmin() || belongsToCentro(resource.data.centroSaludId));
+
+      // Crear: Solo SuperAdmin
+      allow create: if isSuperAdmin();
+
+      // Actualizar: Solo SuperAdmin
+      allow update: if isSuperAdmin();
+
+      // Eliminar: Solo SuperAdmin
+      allow delete: if isSuperAdmin();
+    }
+
+    // ==========================================
     // COLECCIÓN: examenes
     // ==========================================
     match /examenes/{examenId} {

@@ -63,6 +63,10 @@ export class CentrosListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/super-admin/centros/editar', id]);
   }
 
+  navigateToExamenes(id: string): void {
+    this.router.navigate(['/super-admin/centros', id, 'examenes']);
+  }
+
   openDeleteModal(centro: CentroSalud): void {
     this.centroToDelete = centro;
     this.showDeleteModal = true;

@@ -32,6 +32,8 @@ import { User, UserRole, LoginCredentials, SessionInfo } from '@core/models';
   providedIn: 'root'
 })
 export class AuthService {
+  private static readonly PACIENTE_SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+
   private auth = inject(Auth);
   private firestore = inject(Firestore);
   private router = inject(Router);
@@ -42,6 +44,16 @@ export class AuthService {
   // BehaviorSubject para la información de sesión completa
   private sessionSubject = new BehaviorSubject<SessionInfo | null>(null);
   public session$ = this.sessionSubject.asObservable();
+  private pacienteSessionRemainingSecondsSubject = new BehaviorSubject<number | null>(null);
+  public pacienteSessionRemainingSeconds$ = this.pacienteSessionRemainingSecondsSubject.asObservable();
+
+  private sessionTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  private sessionCountdownIntervalHandle: ReturnType<typeof setInterval> | null = null;
+  private sessionTimeoutDeadline: number | null = null;
+  private sessionExpiryWarningShown = false;
+  private activityListenersAttached = false;
+  private readonly activityEvents: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart'];
+  private readonly onUserActivity = () => this.resetPacienteSessionTimer();
 
   constructor() {
     // Inicializar sesión al cargar el servicio
@@ -59,7 +71,7 @@ export class AuthService {
           return this.getUserData(firebaseUser.uid).pipe(
             switchMap(session => {
               if (session) {
-                return of(session);
+                return from(this.enrichDestinatarioSession(session));
               }
 
               if (!email) {
@@ -74,6 +86,7 @@ export class AuthService {
       })
     ).subscribe(userData => {
       this.sessionSubject.next(userData);
+      this.updatePacienteSessionTracking(userData);
     });
   }
 
@@ -114,13 +127,14 @@ export class AuthService {
         return this.getUserData(uid).pipe(
           switchMap(session => {
             if (session) {
-              return of(session);
+              return from(this.enrichDestinatarioSession(session));
             }
 
             return from(this.recoverDestinatarioSession(uid, email));
           }),
           map(session => {
             this.sessionSubject.next(session);
+            this.updatePacienteSessionTracking(session);
             return session;
           })
         );
@@ -139,6 +153,7 @@ export class AuthService {
         uid,
         email,
         role: UserRole.DESTINATARIO,
+        destinatarioTipo: 'paciente',
         centroSaludId: paciente.centroSaludId,
         nombre: paciente.nombre,
         apellido: paciente.apellido || ''
@@ -156,6 +171,7 @@ export class AuthService {
         uid,
         email,
         role: UserRole.DESTINATARIO,
+        destinatarioTipo: 'entidad',
         centroSaludId: entidad.centroSaludId,
         nombre: entidad.nombreEntidad,
         apellido: ''
@@ -166,13 +182,151 @@ export class AuthService {
     return null;
   }
 
+  private async enrichDestinatarioSession(session: SessionInfo): Promise<SessionInfo> {
+    if (session.role !== UserRole.DESTINATARIO || session.destinatarioTipo || !session.email) {
+      return session;
+    }
+
+    const destinatarioTipo = await this.resolveDestinatarioTipoByEmail(session.email);
+    if (!destinatarioTipo) {
+      return session;
+    }
+
+    return {
+      ...session,
+      destinatarioTipo
+    };
+  }
+
+  private async resolveDestinatarioTipoByEmail(email: string): Promise<'paciente' | 'entidad' | null> {
+    const pacientesRef = collection(this.firestore, 'pacientes');
+    const pacienteQuery = query(pacientesRef, where('email', '==', email), limit(1));
+    const pacienteSnapshot = await getDocs(pacienteQuery);
+
+    if (!pacienteSnapshot.empty) {
+      return 'paciente';
+    }
+
+    const entidadesRef = collection(this.firestore, 'entidades');
+    const entidadQuery = query(entidadesRef, where('email', '==', email), limit(1));
+    const entidadSnapshot = await getDocs(entidadQuery);
+
+    if (!entidadSnapshot.empty) {
+      return 'entidad';
+    }
+
+    return null;
+  }
+
   /**
    * Cierra la sesión del usuario
    */
   async logout(): Promise<void> {
+    this.stopPacienteSessionTracking();
     await signOut(this.auth);
     this.sessionSubject.next(null);
     this.router.navigate(['/auth/login']);
+  }
+
+  private updatePacienteSessionTracking(session: SessionInfo | null): void {
+    if (this.isPacienteSession(session)) {
+      this.startPacienteSessionTracking();
+      this.resetPacienteSessionTimer();
+      return;
+    }
+
+    this.stopPacienteSessionTracking();
+  }
+
+  private isPacienteSession(session: SessionInfo | null): boolean {
+    return session?.role === UserRole.DESTINATARIO && session.destinatarioTipo === 'paciente';
+  }
+
+  private startPacienteSessionTracking(): void {
+    if (typeof window === 'undefined' || this.activityListenersAttached) {
+      return;
+    }
+
+    this.activityEvents.forEach(eventName => {
+      window.addEventListener(eventName, this.onUserActivity);
+    });
+    this.activityListenersAttached = true;
+  }
+
+  private stopPacienteSessionTracking(): void {
+    if (typeof window !== 'undefined' && this.activityListenersAttached) {
+      this.activityEvents.forEach(eventName => {
+        window.removeEventListener(eventName, this.onUserActivity);
+      });
+      this.activityListenersAttached = false;
+    }
+
+    if (this.sessionTimeoutHandle) {
+      clearTimeout(this.sessionTimeoutHandle);
+      this.sessionTimeoutHandle = null;
+    }
+
+    if (this.sessionCountdownIntervalHandle) {
+      clearInterval(this.sessionCountdownIntervalHandle);
+      this.sessionCountdownIntervalHandle = null;
+    }
+
+    this.sessionTimeoutDeadline = null;
+    this.sessionExpiryWarningShown = false;
+    this.pacienteSessionRemainingSecondsSubject.next(null);
+  }
+
+  private resetPacienteSessionTimer(): void {
+    if (!this.isPacienteSession(this.sessionSubject.value)) {
+      return;
+    }
+
+    if (this.sessionTimeoutHandle) {
+      clearTimeout(this.sessionTimeoutHandle);
+    }
+
+    this.sessionTimeoutDeadline = Date.now() + AuthService.PACIENTE_SESSION_TIMEOUT_MS;
+    this.sessionExpiryWarningShown = false;
+    this.updatePacienteCountdown();
+    this.startPacienteCountdownInterval();
+
+    this.sessionTimeoutHandle = setTimeout(() => {
+      this.logoutBySessionTimeout();
+    }, AuthService.PACIENTE_SESSION_TIMEOUT_MS);
+  }
+
+  private startPacienteCountdownInterval(): void {
+    if (this.sessionCountdownIntervalHandle) {
+      return;
+    }
+
+    this.sessionCountdownIntervalHandle = setInterval(() => {
+      this.updatePacienteCountdown();
+    }, 1000);
+  }
+
+  private updatePacienteCountdown(): void {
+    if (!this.sessionTimeoutDeadline) {
+      this.pacienteSessionRemainingSecondsSubject.next(null);
+      return;
+    }
+
+    const remainingMs = Math.max(0, this.sessionTimeoutDeadline - Date.now());
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+    this.pacienteSessionRemainingSecondsSubject.next(remainingSeconds);
+
+    if (!this.sessionExpiryWarningShown && remainingSeconds === 60 && typeof window !== 'undefined') {
+      this.sessionExpiryWarningShown = true;
+      window.alert('Tu sesión expirará en 1 minuto por inactividad.');
+    }
+  }
+
+  private async logoutBySessionTimeout(): Promise<void> {
+    if (!this.isPacienteSession(this.sessionSubject.value)) {
+      return;
+    }
+
+    await this.logout();
   }
 
   /**

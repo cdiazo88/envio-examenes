@@ -98,6 +98,29 @@ Debes crear manualmente el primer usuario SuperAdmin en Firebase Console:
 }
 ```
 
+### 5. Reset total para salida a producción (opcional, destructivo)
+
+Si necesitas dejar limpio el sistema antes de producción, existe un script que:
+
+- Elimina **todas** las cuentas de Firebase Authentication
+- Elimina todos los documentos de `users`
+- Elimina todos los documentos de `centrosSalud`
+- Crea un nuevo usuario `super_admin` en Auth + Firestore
+
+Comando:
+
+```bash
+npm --prefix functions run reset:prod -- --confirm RESET_PROD --email nuevoadmin@empresa.cl --password "PasswordSegura123!" --nombre "Nuevo" --apellido "Administrador"
+```
+
+Simulación previa (sin borrar datos):
+
+```bash
+npm --prefix functions run reset:prod -- --dry-run --email nuevoadmin@empresa.cl --password "PasswordSegura123!" --nombre "Nuevo" --apellido "Administrador"
+```
+
+> ⚠️ Esta operación es irreversible. Ejecutar solo en el proyecto Firebase correcto.
+
 ## 💻 Desarrollo
 
 ### Iniciar servidor de desarrollo

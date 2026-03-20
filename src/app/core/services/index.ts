@@ -7,3 +7,4 @@ export * from './centro-salud.service';
 export * from './destinatario.service';
 export * from './examen.service';
 export * from './storage.service';
+export * from './catalogo-examen-centro.service';

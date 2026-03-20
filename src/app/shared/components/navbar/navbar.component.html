@@ -10,6 +10,18 @@
           <span class="ml-2 text-xl font-bold text-gray-900">{{ title }}</span>
         </div>
 
+        <div
+          *ngIf="(session$ | async) as session"
+          class="ml-3"
+        >
+          <div
+            *ngIf="session.role === 'destinatario' && session.destinatarioTipo === 'paciente' && (pacienteSessionRemainingSeconds$ | async) as remainingSeconds"
+            class="flex items-center px-2 md:px-3 py-1 rounded-md bg-gray-100 text-gray-700 text-xs md:text-sm font-medium"
+          >
+            Sesión: {{ formatRemainingTime(remainingSeconds) }}
+          </div>
+        </div>
+
         <!-- Links de navegación (desktop) -->
         <div class="hidden md:ml-10 md:flex md:space-x-8">
           <a

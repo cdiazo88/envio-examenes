@@ -6,10 +6,12 @@
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
       </svg>
-      <span class="text-gray-900">Nuevo Examen</span>
+      <span class="text-gray-900">{{ isEditMode ? 'Editar Examen' : 'Nuevo Examen' }}</span>
     </div>
-    <h2 class="text-2xl font-bold text-gray-800">Cargar Nuevo Examen</h2>
-    <p class="text-gray-600 mt-1">Sube resultados de exámenes para pacientes registrados</p>
+    <h2 class="text-2xl font-bold text-gray-800">{{ isEditMode ? 'Editar Examen' : 'Cargar Nuevo Examen' }}</h2>
+    <p class="text-gray-600 mt-1">
+      {{ isEditMode ? 'Actualiza la información del examen seleccionado' : 'Sube resultados de exámenes para pacientes registrados' }}
+    </p>
   </div>
 
   <!-- Loading State -->
@@ -42,14 +44,15 @@
                   type="text"
                   class="form-input pr-10"
                   [class.input-error]="hasError('destinatarioId', 'required')"
+                  [disabled]="isEditMode"
                   [value]="pacienteSearch"
                   (input)="onPacienteSearchChange($any($event.target).value)"
                   (focus)="onPacienteSearchFocus()"
                   (blur)="hidePacienteResults()"
-                  placeholder="Buscar por nombre, CI/RUT, email o tipo...">
+                  [placeholder]="isEditMode ? 'Paciente bloqueado en edición' : 'Buscar por nombre, CI/RUT, email o tipo...'">
 
                 <button
-                  *ngIf="selectedPaciente"
+                  *ngIf="selectedPaciente && !isEditMode"
                   type="button"
                   class="absolute inset-y-0 right-0 my-auto mr-3 text-gray-400 hover:text-gray-700"
                   (click)="clearPacienteSelection()"
@@ -70,12 +73,12 @@
                   <div class="flex items-center justify-between gap-3">
                     <div class="text-left">
                       <p class="text-sm font-medium text-gray-900">{{ getDestinatarioNombre(paciente) }}</p>
-                      <p class="text-xs text-gray-500">CI/RUT: {{ paciente.cedula }} · {{ paciente.email }}</p>
+                      <p class="text-xs text-gray-500">CI/RUT: {{ formatRut(paciente.cedula) }} · {{ paciente.email }}</p>
                     </div>
                     <span
                       class="inline-flex rounded-full px-2 py-1 text-xs font-semibold"
                       [class]="paciente.entidadId ? 'bg-primary-100 text-primary-700' : 'bg-secondary-100 text-secondary-700'">
-                      {{ paciente.entidadId ? 'Mutual' : 'Particular' }}
+                      {{ paciente.entidadId ? 'Entidad' : 'Particular' }}
                     </span>
                   </div>
                 </button>
@@ -200,9 +203,58 @@
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Archivos del Examen</h3>
-        <p class="text-sm text-gray-500 mt-1">Formatos permitidos: PDF, JPG, PNG (máx. 10MB por archivo)</p>
+        <p class="text-sm text-gray-500 mt-1">
+          Formatos permitidos: PDF, JPG, PNG (máx. 10MB por archivo)
+        </p>
       </div>
       <div class="card-body">
+
+        <div *ngIf="isEditMode" class="mb-6">
+          <h4 class="text-sm font-medium text-gray-700 mb-2">Archivos actuales ({{ existingArchivos.length }})</h4>
+          <ul *ngIf="existingArchivos.length > 0" class="space-y-2">
+            <li *ngFor="let archivo of existingArchivos; let i = index" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div class="flex items-center gap-3">
+                <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                </svg>
+                <div>
+                  <p class="text-sm font-medium text-gray-900">{{ archivo.nombre }}</p>
+                  <p class="text-xs text-gray-500">{{ formatBytes(archivo.tamano) }}</p>
+                  <p *ngIf="replacementFiles[i]" class="text-xs text-primary-700 mt-1">
+                    Se reemplazará por: {{ replacementFiles[i].name }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <input
+                  #replaceInput
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  class="hidden"
+                  (change)="onReplaceFileSelected($event, i)">
+                <button type="button" class="text-primary-700 hover:text-primary-900 text-sm font-medium" (click)="replaceInput.click()">
+                  Reemplazar
+                </button>
+                <button
+                  *ngIf="replacementFiles[i]"
+                  type="button"
+                  class="text-gray-600 hover:text-gray-800 text-sm font-medium"
+                  (click)="clearReplacement(i)">
+                  Deshacer
+                </button>
+                <button type="button" class="text-red-600 hover:text-red-800 text-sm font-medium" (click)="removeExistingArchivo(i)">
+                  Quitar
+                </button>
+              </div>
+            </li>
+          </ul>
+          <p *ngIf="existingArchivos.length === 0" class="text-sm text-amber-700">
+            Este examen quedará sin archivos si no agregas nuevos.
+          </p>
+        </div>
+
+        <h4 class="text-sm font-medium text-gray-700 mb-2">{{ isEditMode ? 'Agregar nuevos archivos' : 'Cargar archivos' }}</h4>
         
         <!-- File Input -->
         <div class="file-upload-area">
@@ -217,7 +269,7 @@
             <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
             </svg>
-            <span class="text-primary-600 font-medium">Click para seleccionar archivos</span>
+            <span class="text-primary-600 font-medium">{{ isEditMode ? 'Click para agregar archivos' : 'Click para seleccionar archivos' }}</span>
             <span class="text-gray-500 text-sm mt-1">o arrastra y suelta aquí</span>
           </label>
         </div>
@@ -271,7 +323,7 @@
           <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
           </svg>
-          Cargar Examen
+          {{ isEditMode ? 'Guardar Cambios' : 'Cargar Examen' }}
         </span>
         <span *ngIf="loading" class="flex items-center gap-2">
           <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">

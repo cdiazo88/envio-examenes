@@ -5,6 +5,7 @@ import { Router, RouterModule, NavigationEnd } from '@angular/router';
 import { DestinatarioService, AuthService } from '@core/services';
 import { Paciente, Entidad } from '@core/models';
 import { CredentialsModalComponent } from '@shared/components/credentials-modal/credentials-modal.component';
+import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
 import { filter, Subscription } from 'rxjs';
 
 @Component({
@@ -109,6 +110,7 @@ export class PacientesListComponent implements OnInit, OnDestroy {
 
   filtrarPacientes(): void {
     const term = this.searchTerm.toLowerCase().trim();
+    const rutTerm = normalizeRut(this.searchTerm);
     
     if (!term) {
       this.pacientesFiltrados = this.pacientes;
@@ -117,9 +119,10 @@ export class PacientesListComponent implements OnInit, OnDestroy {
 
     this.pacientesFiltrados = this.pacientes.filter(paciente => {
       const nombreCompleto = `${paciente.nombre} ${paciente.apellido}`.toLowerCase();
-      const cedula = paciente.cedula.toLowerCase();
+      const cedula = (paciente.cedula || '').toLowerCase();
+      const cedulaNormalized = normalizeRut(paciente.cedula);
       
-      return nombreCompleto.includes(term) || cedula.includes(term);
+      return nombreCompleto.includes(term) || cedula.includes(term) || cedulaNormalized.includes(rutTerm);
     });
   }
 
@@ -197,5 +200,9 @@ export class PacientesListComponent implements OnInit, OnDestroy {
     }
 
     return null;
+  }
+
+  formatRut(value: string): string {
+    return formatRutChile(value);
   }
 }

@@ -7,3 +7,4 @@ export * from './destinatario.model';
 export * from './examen.model';
 export * from './auth.model';
 export * from './notificacion.model';
+export * from './catalogo-examen-centro.model';

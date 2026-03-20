@@ -34,6 +34,7 @@ export interface SessionInfo {
   uid: string;
   email: string;
   role: string;
+  destinatarioTipo?: 'paciente' | 'entidad';
   centroSaludId?: string;
   nombre: string;
   apellido: string;

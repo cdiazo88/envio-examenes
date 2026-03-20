@@ -46,6 +46,10 @@ export const routes: Routes = [
       {
         path: 'centros/editar/:id',
         loadComponent: () => import('./features/super-admin/centros/centro-form/centro-form.component').then(m => m.CentroFormComponent)
+      },
+      {
+        path: 'centros/:id/examenes',
+        loadComponent: () => import('./features/super-admin/centros/centro-examenes/centro-examenes.component').then(m => m.CentroExamenesComponent)
       }
     ]
   },
@@ -93,6 +97,10 @@ export const routes: Routes = [
       },
       {
         path: 'examenes/nuevo',
+        loadComponent: () => import('./features/admin-centro/examenes/examen-form/examen-form.component').then(m => m.ExamenFormComponent)
+      },
+      {
+        path: 'examenes/editar/:id',
         loadComponent: () => import('./features/admin-centro/examenes/examen-form/examen-form.component').then(m => m.ExamenFormComponent)
       }
     ]

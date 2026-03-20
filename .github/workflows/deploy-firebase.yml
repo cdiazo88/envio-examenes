@@ -45,7 +45,18 @@ jobs:
             exit 1
           fi
 
-          NORMALIZED_PROVIDER="${RAW_PROVIDER#//iam.googleapis.com/}"
+          RAW_PROVIDER="$(printf '%s' "$RAW_PROVIDER" | tr -d '\r')"
+          RAW_PROVIDER="${RAW_PROVIDER//$'\n'/}"
+          RAW_PROVIDER="${RAW_PROVIDER#\"}"
+          RAW_PROVIDER="${RAW_PROVIDER%\"}"
+          RAW_PROVIDER="${RAW_PROVIDER#\'}"
+          RAW_PROVIDER="${RAW_PROVIDER%\'}"
+          RAW_PROVIDER="$(echo "$RAW_PROVIDER" | xargs)"
+
+          NORMALIZED_PROVIDER="${RAW_PROVIDER#https://iam.googleapis.com/}"
+          NORMALIZED_PROVIDER="${NORMALIZED_PROVIDER#http://iam.googleapis.com/}"
+          NORMALIZED_PROVIDER="${NORMALIZED_PROVIDER#iam.googleapis.com/}"
+          NORMALIZED_PROVIDER="${NORMALIZED_PROVIDER#//iam.googleapis.com/}"
           NORMALIZED_PROVIDER="${NORMALIZED_PROVIDER#/}"
 
           if ! echo "$NORMALIZED_PROVIDER" | grep -Eq '^projects/[0-9]+/locations/global/workloadIdentityPools/[^/]+/providers/[^/]+$'; then

@@ -16,7 +16,6 @@ import {
   CollectionReference,
   DocumentReference
 } from '@angular/fire/firestore';
-import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, from, forkJoin } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import {
@@ -38,7 +37,6 @@ import { AuthService } from './auth.service';
 })
 export class ExamenService {
   private firestore = inject(Firestore);
-  private functions = inject(Functions);
   private storageService = inject(StorageService);
   private authService = inject(AuthService);
 
@@ -277,15 +275,6 @@ export class ExamenService {
       fechaActualizacion: new Date()
     });
     return from(updateDoc(examenRef, updateData as any));
-  }
-
-  generateExamenZip(examenId: string): Observable<{ success: boolean; downloadUrl: string; fileName: string; failedFiles: string[] }> {
-    const generateZipCallable = httpsCallable<{ examenId: string }, { success: boolean; downloadUrl: string; fileName: string; failedFiles: string[] }>(
-      this.functions,
-      'generateExamenZip'
-    );
-
-    return from(generateZipCallable({ examenId }).then(response => response.data));
   }
 
   /**

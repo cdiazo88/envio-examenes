@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Examen, Entidad, Paciente } from '@core/models';
 import { AuthService, DestinatarioService, ExamenService } from '@core/services';
-import { firstValueFrom, forkJoin } from 'rxjs';
+import { forkJoin } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
 
@@ -99,9 +99,9 @@ import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
                   <button
                     type="button"
                     class="btn btn-primary btn-sm"
-                    (click)="downloadExamenZip(examen)"
-                    [disabled]="isDownloadingZip(examen)">
-                    {{ isDownloadingZip(examen) ? 'Comprimiendo...' : 'ZIP' }}
+                    (click)="downloadExamenFiles(examen)"
+                    [disabled]="isDownloadingFiles(examen)">
+                    {{ isDownloadingFiles(examen) ? 'Guardando...' : 'Guardar todo' }}
                   </button>
                 </div>
               </td>
@@ -164,7 +164,7 @@ export class ExamenesListComponent implements OnInit {
   selectedExamen: Examen | null = null;
   viewerArchivos: Examen['archivos'] = [];
   currentFileIndex = 0;
-  private downloadingZipExamIds = new Set<string>();
+  private downloadingExamIds = new Set<string>();
 
   constructor(
     private authService: AuthService,
@@ -327,37 +327,26 @@ export class ExamenesListComponent implements OnInit {
     document.body.removeChild(link);
   }
 
-  async downloadExamenZip(examen: Examen): Promise<void> {
+  async downloadExamenFiles(examen: Examen): Promise<void> {
     if (!examen.id || !examen.archivos?.length) {
       return;
     }
 
-    this.downloadingZipExamIds.add(examen.id);
+    this.downloadingExamIds.add(examen.id);
 
     try {
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      const savedInFolder = await this.saveAllFilesToFolder(examen);
+      if (!savedInFolder) {
         this.downloadAllFilesIndividually(examen);
-        alert('ZIP backend no disponible en entorno local. Se inició la descarga individual de los archivos.');
-        return;
+        alert('No fue posible guardar en carpeta (restricción del navegador/CORS). Se inició la descarga individual de archivos.');
       }
-
-      const response = await firstValueFrom(this.examenService.generateExamenZip(examen.id));
-      this.downloadFile(response.downloadUrl, response.fileName || `${this.buildExamenZipName(examen)}.zip`);
-
-      if (response.failedFiles?.length) {
-        alert('El ZIP se generó con archivos faltantes. Revisa el detalle dentro del comprimido.');
-      }
-    } catch (error) {
-      console.error('Error al descargar ZIP del examen:', error);
-      this.downloadAllFilesIndividually(examen);
-      alert('No se pudo generar el ZIP del examen. Se inició la descarga individual de los archivos disponibles.');
     } finally {
-      this.downloadingZipExamIds.delete(examen.id);
+      this.downloadingExamIds.delete(examen.id);
     }
   }
 
-  isDownloadingZip(examen: Examen): boolean {
-    return !!examen.id && this.downloadingZipExamIds.has(examen.id);
+  isDownloadingFiles(examen: Examen): boolean {
+    return !!examen.id && this.downloadingExamIds.has(examen.id);
   }
 
   openImageViewer(examen: Examen): void {
@@ -417,18 +406,18 @@ export class ExamenesListComponent implements OnInit {
     return examen.archivos.some(archivo => this.isPdf(archivo.tipo, archivo.nombre));
   }
 
-  private buildExamenZipName(examen: Examen): string {
-    const destinatario = this.sanitizeFileName(examen.destinatarioNombre || 'destinatario');
-    const fecha = this.formatDateForFileName(examen.fechaRealizacion || examen.fechaCreacion || examen.fechaActualizacion);
-    return `${destinatario}_${fecha}`;
-  }
-
-  private buildZipEntryName(originalName: string, index: number): string {
+  private buildDownloadEntryName(originalName: string, index: number): string {
     const dotIndex = originalName.lastIndexOf('.');
     const extension = dotIndex >= 0 ? originalName.slice(dotIndex) : '';
     const baseName = dotIndex >= 0 ? originalName.slice(0, dotIndex) : originalName;
     const safeName = this.sanitizeFileName(baseName) || `archivo_${index + 1}`;
     return `${String(index + 1).padStart(2, '0')}_${safeName}${extension}`;
+  }
+
+  private buildDownloadFolderName(examen: Examen): string {
+    const destinatario = this.sanitizeFileName(examen.destinatarioNombre || 'destinatario');
+    const fecha = this.formatDateForFileName(examen.fechaRealizacion || examen.fechaCreacion || examen.fechaActualizacion);
+    return `${destinatario}_${fecha}`;
   }
 
   private formatDateForFileName(value: unknown): string {
@@ -459,9 +448,69 @@ export class ExamenesListComponent implements OnInit {
 
     examen.archivos.forEach((archivo, index) => {
       setTimeout(() => {
-        this.downloadFile(archivo.url, this.buildZipEntryName(archivo.nombre, index));
+        this.downloadFile(archivo.url, this.buildDownloadEntryName(archivo.nombre, index));
       }, index * 200);
     });
+  }
+
+  private async saveAllFilesToFolder(examen: Examen): Promise<boolean> {
+    const directoryPicker = (window as any).showDirectoryPicker;
+    if (typeof directoryPicker !== 'function') {
+      return false;
+    }
+
+    try {
+      const rootDir = await directoryPicker({ mode: 'readwrite' });
+      const examDir = await rootDir.getDirectoryHandle(this.buildDownloadFolderName(examen), { create: true });
+      const failedFiles: string[] = [];
+      let savedFiles = 0;
+
+      for (let index = 0; index < examen.archivos.length; index += 1) {
+        const archivo = examen.archivos[index];
+        const fileName = this.buildDownloadEntryName(archivo.nombre, index);
+
+        try {
+          const response = await fetch(archivo.url);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const blob = await response.blob();
+          const fileHandle = await examDir.getFileHandle(fileName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          savedFiles += 1;
+        } catch (error) {
+          if (savedFiles === 0 || this.isFetchBlockedError(error)) {
+            console.warn('Guardado en carpeta no disponible para este origen/archivo. Se aplicará fallback de descarga individual.');
+            return false;
+          }
+
+          console.error(`No se pudo guardar el archivo ${fileName} en carpeta`, error);
+          failedFiles.push(fileName);
+        }
+      }
+
+      if (failedFiles.length > 0) {
+        alert(`Se guardaron archivos con errores parciales. Fallaron ${failedFiles.length} archivo(s).`);
+      } else {
+        alert('Todos los archivos del examen se guardaron correctamente en la carpeta seleccionada.');
+      }
+
+      return true;
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return true;
+      }
+
+      console.error('No se pudo guardar en carpeta, se usará descarga individual.', error);
+      return false;
+    }
+  }
+
+  private isFetchBlockedError(error: unknown): boolean {
+    return error instanceof TypeError;
   }
 
   getFecha(value: unknown): string {

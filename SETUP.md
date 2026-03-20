@@ -215,17 +215,23 @@ Se agregaron 2 workflows:
 
 ### Secretos requeridos en GitHub
 
-En tu repositorio, configura el secret:
+En tu repositorio, configura estos secrets para autenticación sin claves (OIDC):
 
-- `FIREBASE_SERVICE_ACCOUNT`: JSON completo de una Service Account con permisos de deploy en Firebase.
+- `GCP_WORKLOAD_IDENTITY_PROVIDER`: recurso completo del provider, por ejemplo:
+  `projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
+- `GCP_SERVICE_ACCOUNT_EMAIL`: email de la service account usada para deploy, por ejemplo:
+  `github-deploy@envio-examenes.iam.gserviceaccount.com`
 
 Pasos sugeridos:
 
-1. Firebase Console → Project Settings → Service accounts.
-2. Genera una nueva clave privada JSON.
-3. En GitHub: Settings → Secrets and variables → Actions → New repository secret.
-4. Nombre: `FIREBASE_SERVICE_ACCOUNT`.
-5. Pega el contenido completo del JSON.
+1. En Google Cloud, crea un Workload Identity Pool y un Provider de GitHub OIDC.
+2. Crea/usa una Service Account para deploy.
+3. Concede a esa Service Account permisos necesarios para Firebase (Hosting, Functions, Firestore Rules, Storage Rules).
+4. Autoriza al principal del repo GitHub a impersonar la Service Account (`roles/iam.workloadIdentityUser`).
+5. En GitHub: Settings → Secrets and variables → Actions → New repository secret.
+6. Crea los secrets `GCP_WORKLOAD_IDENTITY_PROVIDER` y `GCP_SERVICE_ACCOUNT_EMAIL` con sus valores.
+
+> Si tu organización bloquea creación de claves de Service Account, este enfoque OIDC es el recomendado y no requiere JSON privado.
 
 ### Flujo de despliegue
 

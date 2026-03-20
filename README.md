@@ -43,7 +43,7 @@ npm run build
 
 ## 🔧 Configuración de Firebase
 
-1. Crear proyecto en Firebase Console
+1. Crear proyecto en Firebase Console 
 2. Habilitar Authentication (Email/Password)
 3. Crear base de datos Firestore
 4. Configurar Storage

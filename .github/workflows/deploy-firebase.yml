@@ -35,10 +35,33 @@ jobs:
       - name: Build production app
         run: npm run build:prod
 
+      - name: Normalize and validate WIF provider
+        id: wif
+        shell: bash
+        run: |
+          RAW_PROVIDER='${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+          if [ -z "$RAW_PROVIDER" ]; then
+            echo "Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER"
+            exit 1
+          fi
+
+          NORMALIZED_PROVIDER="${RAW_PROVIDER#//iam.googleapis.com/}"
+          NORMALIZED_PROVIDER="${NORMALIZED_PROVIDER#/}"
+
+          if ! echo "$NORMALIZED_PROVIDER" | grep -Eq '^projects/[0-9]+/locations/global/workloadIdentityPools/[^/]+/providers/[^/]+$'; then
+            echo "Invalid GCP_WORKLOAD_IDENTITY_PROVIDER format."
+            echo "Expected: projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID"
+            echo "Current: $RAW_PROVIDER"
+            exit 1
+          fi
+
+          echo "provider=$NORMALIZED_PROVIDER" >> "$GITHUB_OUTPUT"
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          project_id: envio-examenes
+          workload_identity_provider: ${{ steps.wif.outputs.provider }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Setup gcloud

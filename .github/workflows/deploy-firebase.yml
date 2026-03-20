@@ -95,7 +95,7 @@ jobs:
       - name: Deploy Functions (non-blocking)
         id: deploy_functions
         continue-on-error: true
-        run: firebase deploy --project envio-examenes --only functions
+        run: firebase deploy --project envio-examenes --only functions --force
 
       - name: Functions deploy warning
         if: steps.deploy_functions.outcome == 'failure'

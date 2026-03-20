@@ -41,6 +41,17 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify OIDC authentication
+        run: |
+          test -n "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" || (echo "Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER" && exit 1)
+          test -n "${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}" || (echo "Missing secret: GCP_SERVICE_ACCOUNT_EMAIL" && exit 1)
+          gcloud auth list
+          gcloud config set project envio-examenes
+          gcloud projects describe envio-examenes --format='value(projectId)'
+
       - name: Setup Firebase CLI
         run: npm install -g firebase-tools
 

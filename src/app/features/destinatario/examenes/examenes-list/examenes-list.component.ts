@@ -19,13 +19,13 @@ import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
 
       <div *ngIf="!loading && !errorMessage && destinatarioTipo !== 'paciente'" class="mb-6">
         <div class="bg-white rounded-lg shadow p-4">
-          <label for="rutFilter" class="block text-sm font-medium text-gray-700 mb-2">Filtrar por RUT / CI del paciente</label>
+          <label for="rutFilter" class="block text-sm font-medium text-gray-700 mb-2">Filtrar por RUT, nombre o apellido del paciente</label>
           <input
             id="rutFilter"
             type="text"
             [(ngModel)]="rutFilter"
             (input)="applyRutFilter()"
-            placeholder="Ej: 12.345.678-5"
+            placeholder="Ej: 12.345.678-5 o Juan Pérez"
             class="form-input">
           <p class="text-sm text-gray-500 mt-2">
             Mostrando {{ filteredExamenes.length }} de {{ examenes.length }} exámenes
@@ -191,13 +191,13 @@ export class ExamenesListComponent implements OnInit {
       entidad: this.destinatarioService.getEntidadByEmail(session.email)
     }).subscribe({
       next: ({ paciente, entidad }) => {
-        if (paciente?.id) {
-          this.loadAsPaciente(paciente, session.centroSaludId, session.uid);
+        if (entidad?.id) {
+          this.loadAsEntidad(entidad, session.centroSaludId, session.uid);
           return;
         }
 
-        if (entidad?.id) {
-          this.loadAsEntidad(entidad, session.centroSaludId, session.uid);
+        if (paciente?.id) {
+          this.loadAsPaciente(paciente, session.centroSaludId, session.uid);
           return;
         }
 
@@ -297,7 +297,7 @@ export class ExamenesListComponent implements OnInit {
   }
 
   applyRutFilter(): void {
-    const term = this.rutFilter.toLowerCase().trim();
+    const term = this.normalizeSearchValue(this.rutFilter);
     const rutTerm = normalizeRut(this.rutFilter);
 
     if (!term) {
@@ -306,10 +306,24 @@ export class ExamenesListComponent implements OnInit {
     }
 
     this.filteredExamenes = this.examenes.filter(examen => {
-      const documento = (examen.destinatarioDocumento || '').toLowerCase();
+      const documento = this.normalizeSearchValue(examen.destinatarioDocumento || '');
       const documentoNormalized = normalizeRut(examen.destinatarioDocumento || '');
-      return documento.includes(term) || documentoNormalized.includes(rutTerm);
+      const nombreCompleto = this.normalizeSearchValue(examen.destinatarioNombre || '');
+
+      return (
+        documento.includes(term) ||
+        documentoNormalized.includes(rutTerm) ||
+        nombreCompleto.includes(term)
+      );
     });
+  }
+
+  private normalizeSearchValue(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
   }
 
   formatRut(value: string): string {

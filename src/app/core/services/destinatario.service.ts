@@ -17,7 +17,7 @@ import {
 } from '@angular/fire/firestore';
 import { Auth } from '@angular/fire/auth';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, from } from 'rxjs';
+import { Observable, from, firstValueFrom } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import {
   Destinatario,
@@ -28,6 +28,7 @@ import {
   TipoDestinatario,
   UserRole
 } from '@core/models';
+import { ExamenService } from './examen.service';
 
 /**
  * Servicio de gestión de Destinatarios (Pacientes y Entidades)
@@ -39,6 +40,7 @@ export class DestinatarioService {
   private firestore = inject(Firestore);
   private auth = inject(Auth);
   private functions = inject(Functions);
+  private examenService = inject(ExamenService);
 
   private pacientesCollection = collection(
     this.firestore,
@@ -83,64 +85,78 @@ export class DestinatarioService {
   private async cleanupAuthByEmail(email?: string, passwordTemporal?: string): Promise<void> {
     if (!email) return;
 
-    try {
-      const deleteRecipientAuth = httpsCallable<{ email: string }, { success: boolean }>(
-        this.functions,
-        'deleteRecipientAuth'
-      );
-      await deleteRecipientAuth({ email });
-      return;
-    } catch (error) {
-      console.warn('Cloud Function deleteRecipientAuth no disponible o falló. Se intenta fallback local:', error);
-    }
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    const usersRef = collection(this.firestore, 'users');
-    const userQuery = query(usersRef, where('email', '==', email));
-    const userSnapshot = await getDocs(userQuery);
-
-    if (!userSnapshot.empty && passwordTemporal) {
+    if (!isLocalhost) {
       try {
-        const firebaseApiKey = this.auth.app.options.apiKey;
-
-        const signInResponse = await fetch(
-          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseApiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email,
-              password: passwordTemporal,
-              returnSecureToken: true
-            })
-          }
+        const deleteRecipientAuth = httpsCallable<{ email: string }, { success: boolean }>(
+          this.functions,
+          'deleteRecipientAuth'
         );
-
-        if (signInResponse.ok) {
-          const signInData = await signInResponse.json();
-          const deleteResponse = await fetch(
-            `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${firebaseApiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ idToken: signInData.idToken })
-            }
-          );
-
-          if (!deleteResponse.ok) {
-            const deleteError = await deleteResponse.json();
-            console.warn('No se pudo eliminar usuario en Firebase Auth:', deleteError);
-          }
-        } else {
-          const signInError = await signInResponse.json();
-          console.warn('No se pudo autenticar para borrar usuario en Firebase Auth:', signInError);
-        }
+        await deleteRecipientAuth({ email });
+        return;
       } catch (error) {
-        console.warn('Error al intentar eliminar usuario en Firebase Auth:', error);
+        console.warn('Cloud Function deleteRecipientAuth no disponible o falló. Se intenta fallback local:', error);
       }
     }
 
-    if (!userSnapshot.empty) {
-      await Promise.all(userSnapshot.docs.map(userDoc => deleteDoc(doc(this.firestore, `users/${userDoc.id}`))));
+    try {
+      const usersRef = collection(this.firestore, 'users');
+      const userQuery = query(usersRef, where('email', '==', email));
+      const userSnapshot = await getDocs(userQuery);
+
+      if (!userSnapshot.empty && passwordTemporal) {
+        try {
+          const firebaseApiKey = this.auth.app.options.apiKey;
+
+          const signInResponse = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseApiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email,
+                password: passwordTemporal,
+                returnSecureToken: true
+              })
+            }
+          );
+
+          if (signInResponse.ok) {
+            const signInData = await signInResponse.json();
+            const deleteResponse = await fetch(
+              `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${firebaseApiKey}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken: signInData.idToken })
+              }
+            );
+
+            if (!deleteResponse.ok) {
+              const deleteError = await deleteResponse.json();
+              console.warn('No se pudo eliminar usuario en Firebase Auth:', deleteError);
+            }
+          } else {
+            const signInError = await signInResponse.json();
+            console.warn('No se pudo autenticar para borrar usuario en Firebase Auth:', signInError);
+          }
+        } catch (error) {
+          console.warn('Error al intentar eliminar usuario en Firebase Auth:', error);
+        }
+      }
+
+      if (!userSnapshot.empty) {
+        try {
+          await Promise.all(userSnapshot.docs.map(userDoc => deleteDoc(doc(this.firestore, `users/${userDoc.id}`))));
+        } catch (error) {
+          console.warn('No se pudieron eliminar documentos en users durante cleanupAuthByEmail:', error);
+        }
+      }
+    } catch (error) {
+      console.warn('Sin permisos para consultar users durante cleanupAuthByEmail. Se continúa con eliminación de paciente.', error);
     }
   }
 
@@ -518,11 +534,29 @@ export class DestinatarioService {
     const pacienteRef = doc(this.firestore, `pacientes/${id}`);
     return from(getDoc(pacienteRef)).pipe(
       switchMap(async (docSnap) => {
-        if (docSnap.exists()) {
-          const paciente = docSnap.data() as Paciente;
-          await this.cleanupAuthByEmail(paciente.email, paciente.passwordTemporal);
+        if (!docSnap.exists()) {
+          return;
         }
 
+        const paciente = docSnap.data() as Paciente;
+
+        const examenesRef = collection(this.firestore, 'examenes');
+        const examenesQuery = query(
+          examenesRef,
+          where('destinatarioId', '==', id),
+          where('centroSaludId', '==', paciente.centroSaludId)
+        );
+        const examenesSnapshot = await getDocs(examenesQuery);
+
+        for (const examenDoc of examenesSnapshot.docs) {
+          await firstValueFrom(this.examenService.deleteExamen(examenDoc.id));
+        }
+
+        try {
+          await this.cleanupAuthByEmail(paciente.email, paciente.passwordTemporal);
+        } catch (error) {
+          console.warn('cleanupAuthByEmail falló y se omite para no bloquear eliminación de paciente:', error);
+        }
         await deleteDoc(pacienteRef);
       })
     );

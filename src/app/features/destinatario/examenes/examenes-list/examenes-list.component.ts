@@ -312,7 +312,7 @@ export class ExamenesListComponent implements OnInit {
 
       return (
         documento.includes(term) ||
-        documentoNormalized.includes(rutTerm) ||
+        (rutTerm.length > 0 && documentoNormalized.includes(rutTerm)) ||
         nombreCompleto.includes(term)
       );
     });

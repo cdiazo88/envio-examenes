@@ -6,7 +6,7 @@ import { DestinatarioService, AuthService } from '@core/services';
 import { Paciente, Entidad } from '@core/models';
 import { CredentialsModalComponent } from '@shared/components/credentials-modal/credentials-modal.component';
 import { formatRutChile, normalizeRut } from '@shared/utils/rut-chile.util';
-import { filter, Subscription } from 'rxjs';
+import { filter, firstValueFrom, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-pacientes-list',
@@ -109,7 +109,7 @@ export class PacientesListComponent implements OnInit, OnDestroy {
   }
 
   filtrarPacientes(): void {
-    const term = this.searchTerm.toLowerCase().trim();
+    const term = this.normalizeSearchValue(this.searchTerm);
     const rutTerm = normalizeRut(this.searchTerm);
     
     if (!term) {
@@ -118,12 +118,24 @@ export class PacientesListComponent implements OnInit, OnDestroy {
     }
 
     this.pacientesFiltrados = this.pacientes.filter(paciente => {
-      const nombreCompleto = `${paciente.nombre} ${paciente.apellido}`.toLowerCase();
-      const cedula = (paciente.cedula || '').toLowerCase();
+      const nombreCompleto = this.normalizeSearchValue(`${paciente.nombre} ${paciente.apellido}`);
+      const cedula = this.normalizeSearchValue(paciente.cedula || '');
       const cedulaNormalized = normalizeRut(paciente.cedula);
-      
-      return nombreCompleto.includes(term) || cedula.includes(term) || cedulaNormalized.includes(rutTerm);
+
+      return (
+        nombreCompleto.includes(term) ||
+        cedula.includes(term) ||
+        (rutTerm.length > 0 && cedulaNormalized.includes(rutTerm))
+      );
     });
+  }
+
+  private normalizeSearchValue(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
   }
 
   navigateToCreate(): void {
@@ -154,7 +166,7 @@ export class PacientesListComponent implements OnInit, OnDestroy {
     if (!this.pacienteToDelete?.id) return;
 
     try {
-      await this.destinatarioService.deletePaciente(this.pacienteToDelete.id);
+      await firstValueFrom(this.destinatarioService.deletePaciente(this.pacienteToDelete.id));
       this.loadPacientes();
       this.closeDeleteModal();
     } catch (error) {

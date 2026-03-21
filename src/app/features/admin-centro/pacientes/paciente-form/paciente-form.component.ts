@@ -93,16 +93,47 @@ export class PacienteFormComponent implements OnInit {
 
   onEntidadChange(entidadId: string): void {
     const generarCredencialesControl = this.pacienteForm.get('generarCredenciales');
+    const emailControl = this.pacienteForm.get('email');
+    const telefonoControl = this.pacienteForm.get('telefono');
     
     if (!entidadId || entidadId === '') {
       // Es PARTICULAR: siempre genera credenciales
       generarCredencialesControl?.setValue(true);
       generarCredencialesControl?.disable();
+
+      if (!this.isEditMode) {
+        emailControl?.enable();
+        telefonoControl?.enable();
+      }
+
+      emailControl?.setValidators([Validators.required, Validators.email]);
+      telefonoControl?.setValidators([Validators.pattern(/^\d{7,15}$/)]);
+      emailControl?.updateValueAndValidity();
+      telefonoControl?.updateValueAndValidity();
     } else {
       // Está asociado a ENTIDAD: NO genera credenciales (la entidad ve sus exámenes)
       generarCredencialesControl?.setValue(false);
       generarCredencialesControl?.disable();
+
+      const entidadSeleccionada = this.entidades.find(e => e.id === entidadId);
+      emailControl?.setValue(entidadSeleccionada?.email || '');
+      telefonoControl?.setValue(entidadSeleccionada?.telefono || '');
+
+      emailControl?.clearValidators();
+      telefonoControl?.clearValidators();
+      emailControl?.updateValueAndValidity();
+      telefonoControl?.updateValueAndValidity();
+
+      if (!this.isEditMode) {
+        emailControl?.disable();
+        telefonoControl?.disable();
+      }
     }
+  }
+
+  isEntidadSeleccionada(): boolean {
+    const entidadId = this.pacienteForm?.get('entidadId')?.value;
+    return !!entidadId;
   }
 
   loadPaciente(id: string): void {

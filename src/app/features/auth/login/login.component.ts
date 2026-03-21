@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '@core/services';
 
 @Component({
@@ -12,19 +12,68 @@ import { AuthService } from '@core/services';
   styleUrls: ['./login.component.scss']
 })
 export class LoginComponent {
+  private static readonly LOGIN_KEY_STORAGE_KEY = 'login_key';
+
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   loginForm: FormGroup;
   loading = false;
   errorMessage = '';
+  loginKey = '';
 
   constructor() {
     this.loginForm = this.fb.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', [Validators.required, Validators.minLength(6)]]
     });
+
+    this.route.queryParamMap.subscribe(params => {
+      const keyFromQuery = this.sanitizeKey(params.get('key'));
+
+      if (keyFromQuery) {
+        this.loginKey = keyFromQuery;
+        this.persistLoginKey(keyFromQuery);
+        return;
+      }
+
+      this.loginKey = this.getPersistedLoginKey();
+    });
+  }
+
+  get loginTitle(): string {
+    return this.loginKey ? `Resultado de Exámenes de ${this.loginKey}` : 'Resultado de Exámenes';
+  }
+
+  private sanitizeKey(value: string | null): string {
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .trim()
+      .replace(/[\r\n\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .slice(0, 60);
+  }
+
+  private persistLoginKey(key: string): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.sessionStorage.setItem(LoginComponent.LOGIN_KEY_STORAGE_KEY, key);
+  }
+
+  private getPersistedLoginKey(): string {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const storedValue = window.sessionStorage.getItem(LoginComponent.LOGIN_KEY_STORAGE_KEY);
+    return this.sanitizeKey(storedValue);
   }
 
   onSubmit(): void {

@@ -33,6 +33,7 @@ import { User, UserRole, LoginCredentials, SessionInfo } from '@core/models';
 })
 export class AuthService {
   private static readonly PACIENTE_SESSION_TIMEOUT_MS = 5 * 60 * 1000;
+  private static readonly LOGIN_KEY_STORAGE_KEY = 'login_key';
 
   private auth = inject(Auth);
   private firestore = inject(Firestore);
@@ -223,9 +224,42 @@ export class AuthService {
    */
   async logout(): Promise<void> {
     this.stopPacienteSessionTracking();
+    const loginQueryParams = this.getLoginQueryParams();
     await signOut(this.auth);
     this.sessionSubject.next(null);
+
+    if (loginQueryParams) {
+      this.router.navigate(['/auth/login'], { queryParams: loginQueryParams });
+      return;
+    }
+
     this.router.navigate(['/auth/login']);
+  }
+
+  getLoginQueryParams(): { key: string } | null {
+    const loginKey = this.getPersistedLoginKey();
+    if (!loginKey) {
+      return null;
+    }
+
+    return { key: loginKey };
+  }
+
+  private getPersistedLoginKey(): string {
+    if (typeof window === 'undefined') {
+      return '';
+    }
+
+    const storedValue = window.sessionStorage.getItem(AuthService.LOGIN_KEY_STORAGE_KEY);
+    if (!storedValue) {
+      return '';
+    }
+
+    return storedValue
+      .trim()
+      .replace(/[\r\n\t]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .slice(0, 60);
   }
 
   private updatePacienteSessionTracking(session: SessionInfo | null): void {

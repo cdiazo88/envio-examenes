@@ -20,7 +20,7 @@ export class NavbarComponent {
   authService = inject(AuthService);
   private router = inject(Router);
 
-  @Input() title = 'Sistema de Exámenes';
+  @Input() title = 'Resultado de Exámenes';
   @Input() links: NavLink[] = [];
 
   session$ = this.authService.session$;

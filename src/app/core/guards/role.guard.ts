@@ -16,7 +16,7 @@ function createRoleGuard(allowedRoles: UserRole[]): CanActivateFn {
       take(1),
       map(session => {
         if (!session) {
-          router.navigate(['/auth/login']);
+          router.navigate(['/auth/login'], { queryParams: authService.getLoginQueryParams() });
           return false;
         }
 
